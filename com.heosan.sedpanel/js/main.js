@@ -1,4 +1,4 @@
-/* SED Panel v3.0 - main.js - (c) 2026 Heosan */
+/* SED Panel v3.1 - main.js - (c) 2026 Heosan */
 /* global CSInterface */
 (function(){
 "use strict";
@@ -22,7 +22,7 @@ var LANG_KEY = "sed_panel_lang";
 var TMP_KEY = "sed_panel_custom_tmp";
 var UPDATE_NOTIF_KEY = "sed_panel_update_notif";
 var UPDATE_LATER_KEY = "sed_panel_update_later_at";
-var CUR_VER = "3.0.0";
+var CUR_VER = "3.1.0";
 var GH_REPO = "heosan02/sed-panel";
 
 // ═══ i18n ══════════════════════════════════════════════
@@ -388,27 +388,6 @@ function filePathToURI(path){
   if(p.charAt(0)!=="/") p="/"+p;
   return encodeURI("file://"+p);
 }
-function readThumbDataURI(path){
-  if(!path) return "";
-  var isJpg = /\.jpe?g$/i.test(path);
-  var mime  = isJpg ? "image/jpeg" : "image/png";
-  try{
-    if(typeof require==="function"){
-      var fs=require("fs");
-      if(fs&&fs.existsSync(path)){
-        return "data:"+mime+";base64,"+fs.readFileSync(path).toString("base64");
-      }
-    }
-  }catch(e1){}
-  try{
-    if(window.cep&&window.cep.fs&&window.cep.encoding){
-      var np = path.replace(/\\/g,"/");
-      var r=window.cep.fs.readFile(np,window.cep.encoding.Base64);
-      if(r&&r.err===0&&r.data) return "data:"+mime+";base64,"+r.data;
-    }
-  }catch(e2){}
-  return filePathToURI(path);
-}
 function acceptThumb(idx,res){
   // v5.3 OPT: file:// URI — fastest approach
   // Browser CEP loads file:// async (non-blocking), no disk read in JS needed.
@@ -585,13 +564,6 @@ function _getSourceForScene(sc){
   };
 }
 
-// ── Calculate source seek time for a specific scene ───────
-function _calcSourceSecForScene(sc, compSec){
-  var srcInfo = _getSourceForScene(sc);
-  var t = compSec - srcInfo.layerStartSec + srcInfo.sourceStartSec;
-  return Math.max(0, t);
-}
-
 // ── Resolve temp folder path via JSX ─────────────────────
 function _resolveTmpPath(cb){
   if(_ffmpeg.tmpPath){ cb(_ffmpeg.tmpPath); return; }
@@ -611,15 +583,6 @@ function _resolvePython(cb){
     _jsLog("thumb","[PYTHON] avail="+_ffmpeg.pyAvail+" path="+_ffmpeg.pyPath);
     cb(_ffmpeg.pyAvail);
   });
-}
-
-// ── Calculate correct source timestamp for FFmpeg ────────
-// comp_time → source file time
-// source_seek = comp_seek - layerStartSec + sourceStartSec
-// clamped to [0, …]
-function _calcSourceSec(compSec){
-  var t = compSec - _ffmpeg.layerStartSec + _ffmpeg.sourceStartSec;
-  return Math.max(0, t);
 }
 
 // ── Thumbnail pipeline — async polling engine ─────────────
@@ -1126,32 +1089,6 @@ function acceptThumbJPG(idx, path, uri){
   return true;
 }
 
-// _readBase64(path) — read file from disk as base64 data URI synchronously
-// Uses cep.fs.readFile — the only reliable way in AE CEP panels
-function _readBase64(path){
-  if(!path) return "";
-  var isJpg = /\.jpe?g$/i.test(path);
-  var mime  = isJpg ? "image/jpeg" : "image/png";
-  var np    = path.replace(/\\/g, "/");
-  try{
-    if(window.cep && window.cep.fs && window.cep.encoding){
-      var r = window.cep.fs.readFile(np, window.cep.encoding.Base64);
-      if(r && r.err === 0 && r.data && r.data.length > 50){
-        return "data:" + mime + ";base64," + r.data;
-      }
-    }
-  }catch(e){}
-  try{
-    if(typeof require === "function"){
-      var fs = require("fs");
-      if(fs && fs.existsSync(path)){
-        return "data:" + mime + ";base64," + fs.readFileSync(path).toString("base64");
-      }
-    }
-  }catch(e2){}
-  return "";
-}
-
 // _injectThumbDirect — inject pre-loaded data URI, no async loading needed
 function _injectThumbDirect(idx, dataURI, path){
   var card = document.querySelector(".scene-card[data-idx='"+idx+"']");
@@ -1518,7 +1455,7 @@ $("diag-btn").addEventListener("click",function(){
     if(!res){ setStatus("Diagnostics failed","warn"); return; }
 
     var lines = [];
-    lines.push("═══ SED Panel v3.0 — Full Diagnostics ═══");
+    lines.push("═══ SED Panel v3.1 — Full Diagnostics ═══");
     lines.push("");
     lines.push("AE Version    : " + (res.aeVersion||"?"));
     lines.push("");

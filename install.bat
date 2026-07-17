@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableDelayedExpansion
-title SED Panel CEP v3.0 - Installer
+title SED Panel CEP v3.1 - Installer
 
 echo.
 echo  =====================================================
-echo   SED Panel CEP  v3.0  ^|  Auto Installer  ^(Multi-Layer^)
+echo   SED Panel CEP  v3.1  ^|  Auto Installer  ^(Multi-Layer^)
 echo   Multi-Layer Read Markers  ^|  Thumbnail Multi-Layer  ^|  Merge Cut Layers
 echo   (c) 2026 Heosan
 echo  =====================================================
@@ -309,7 +309,7 @@ set "CEP_DIR=%ROAMING%\Adobe\CEP\extensions"
 set "DEST=%CEP_DIR%\com.heosan.sedpanel"
 set "SRC=%~dp0com.heosan.sedpanel"
 
-echo  Menginstall SED Panel v3.0 (Multi-Layer)...
+echo  Menginstall SED Panel v3.1 (Multi-Layer)...
 
 :: Buat folder jika belum ada
 if not exist "%ROAMING%\Adobe"     mkdir "%ROAMING%\Adobe"     >nul 2>&1
@@ -330,7 +330,7 @@ mkdir "%DEST%\CSXS"     >nul 2>&1
 mkdir "%DEST%\css"      >nul 2>&1
 mkdir "%DEST%\js"       >nul 2>&1
 mkdir "%DEST%\jsx"      >nul 2>&1
-mkdir "%DEST%\ffmpeg"   >nul 2>&1
+mkdir "%DEST%\py"       >nul 2>&1
 
 :: Salin file
 echo  Menyalin file...
@@ -341,22 +341,12 @@ copy /y "%SRC%\js\CSInterface.js"   "%DEST%\js\CSInterface.js"  >nul 2>&1
 copy /y "%SRC%\js\main.js"          "%DEST%\js\main.js"         >nul 2>&1
 copy /y "%SRC%\jsx\host.jsx"        "%DEST%\jsx\host.jsx"       >nul 2>&1
 
-:: Salin thumb_gen.py
+:: Salin thumb_gen.py + thumb_gen.exe (cv2 bundled)
 if exist "%SRC%\thumb_gen.py" (
     copy /y "%SRC%\thumb_gen.py" "%DEST%\thumb_gen.py" >nul 2>&1
 )
-
-:: Salin thumb_gen.py
-if exist "%SRC%\thumb_gen.py" (
-    copy /y "%SRC%\thumb_gen.py" "%DEST%\thumb_gen.py" >nul 2>&1
-)
-
-:: Salin ffmpeg.exe jika ada
-if exist "%SRC%\ffmpeg\ffmpeg.exe" (
-    echo  Menyalin ffmpeg.exe ^(ini mungkin memakan waktu beberapa detik...^)
-    copy /y "%SRC%\ffmpeg\ffmpeg.exe" "%DEST%\ffmpeg\ffmpeg.exe" >nul 2>&1
-) else (
-    echo  [INFO] ffmpeg.exe tidak ditemukan di folder sumber, dilewati.
+if exist "%SRC%\py\thumb_gen.exe" (
+    copy /y "%SRC%\py\thumb_gen.exe" "%DEST%\py\thumb_gen.exe" >nul 2>&1
 )
 echo.
 
@@ -386,17 +376,12 @@ if exist "%DEST%\thumb_gen.py" (
 ) else (
     echo   [INFO] thumb_gen.py tidak ada
 )
-if exist "%DEST%\thumb_gen.py" (
-    echo   [OK] thumb_gen.py
-) else (
-    echo   [INFO] thumb_gen.py tidak ada
-)
-if exist "%DEST%\ffmpeg\ffmpeg.exe" (
-    for %%F in ("%DEST%\ffmpeg\ffmpeg.exe") do (
-        echo   [OK] ffmpeg\ffmpeg.exe ^(%%~zF bytes^)
+if exist "%DEST%\py\thumb_gen.exe" (
+    for %%F in ("%DEST%\py\thumb_gen.exe") do (
+        echo   [OK] py\thumb_gen.exe ^(%%~zF bytes^)
     )
 ) else (
-    echo   [INFO] ffmpeg\ffmpeg.exe tidak ada ^(thumbnail akan pakai AE fallback^)
+    echo   [INFO] py\thumb_gen.exe tidak ada ^(thumbnail fallback ke AE^)
 )
 echo.
 
@@ -412,7 +397,7 @@ if "%ALL_OK%"=="0" (
 :: SELESAI
 :: ════════════════════════════════════════════════════════
 echo  =====================================================
-echo   INSTALASI SELESAI!  SED Panel CEP v3.0
+echo   INSTALASI SELESAI!  SED Panel CEP v3.1
 echo   Multi-Layer Read Markers  ^|  Thumbnail Multi-Layer  ^|  Merge Cut Layers
 echo  =====================================================
 echo.

@@ -1,5 +1,5 @@
 // ============================================================
-// host.jsx  -  SED Panel CEP  v3.0  (Multi-Layer)
+// host.jsx  -  SED Panel CEP  v3.1  (Multi-Layer)
 
 // ══════════════════════════════════════════════════════════
 // AE VERSION DETECTION — called on panel startup
@@ -150,24 +150,6 @@ function selectCustomTempFolder(){
 }
 
 // ── Base64 encoder ────────────────────────────────────────
-function _b64(file){
-    file.encoding="BINARY";
-    if(!file.open("r")) return null;
-    var bin=""; try{ bin=file.read(); }catch(e){ file.close(); return null; }
-    file.close();
-    var ch="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    var out="",i=0,L=bin.length;
-    while(i<L){
-        var a=bin.charCodeAt(i)&0xff;
-        var b=i+1<L?bin.charCodeAt(i+1)&0xff:0;
-        var c=i+2<L?bin.charCodeAt(i+2)&0xff:0;
-        out+=ch[(a>>2)&0x3f]+ch[((a&3)<<4)|((b>>4)&0xf)];
-        out+=(i+1<L?ch[((b&0xf)<<2)|((c>>6)&3)]:"=")+( i+2<L?ch[c&0x3f]:"=");
-        i+=3;
-    }
-    return out;
-}
-
 function _pngReady(file){
     if(!file || !file.exists || file.length < 1024) return false;
     var ok=false;
@@ -221,15 +203,6 @@ function _waitForOut(f, ms){
         elapsed += step;
     }
     return _findOut(f);
-}
-
-function _fileURI(file){
-    try{
-        if(file.absoluteURI) return file.absoluteURI;
-    }catch(e1){}
-    var p=file.fsName.replace(/\\/g,"/");
-    if(p.charAt(0)!="/") p="/"+p;
-    return "file://"+p.replace(/ /g,"%20");
 }
 
 // ══════════════════════════════════════════════════════════
@@ -323,26 +296,6 @@ function _captureViaRQ(comp, snapSec, outFile){
 
 // Strategy 3: Read from source footage directly (fastest, no render needed)
 // Works when layer source is a video file with accessible frames
-function _captureFromSource(layer, snapSec, outFile){
-    if(!layer||!(layer.source instanceof FootageItem)) return null;
-    var src=layer.source;
-    if(!(src.mainSource instanceof FileSource)) return null;
-
-    var srcFile=src.mainSource.file;
-    if(!srcFile||!srcFile.exists) return null;
-
-    // For image sequences and video: use thumbnail via system
-    // ExtendScript can't read video frames directly.
-    // But we can use the footage thumbnail if available.
-    return null; // Not implementable purely in ExtendScript
-}
-
-// Strategy 4: Use AE "snapshot" — take viewer snapshot
-// This captures whatever is visible in the AE viewer
-// Works by: set CTI → app.callHandler("takesnapshot") 
-// But this is viewer-specific and not reliable cross-version.
-// Skip for now.
-
 // ── Main capture function ─────────────────────────────────
 function _captureFrame(comp, snapSec, outFile){
     var result=_captureSaveFrame(comp,snapSec,outFile);
@@ -403,27 +356,6 @@ function captureSceneFrames(startSec, durSec, sceneIdx, customPath){
     _writeLog("thumb","[OK] sc"+(sceneIdx+1)+" path="+found.fsName+" size="+found.length);
     // Return path only — JS panel reads file via cep.fs (no size limit issue)
     return JSON.stringify({ok:true,path:found.fsName,sceneIdx:sceneIdx,frameSec:snapSec});
-}
-
-// ── getDiagnostics ────────────────────────────────────────
-function getDiagnostics(customPath){
-    var comp=app.project.activeItem;
-    if(!comp||!(comp instanceof CompItem))
-        return JSON.stringify({ok:false,msg:"No active comp."});
-    var rq=null;
-    var info={aeVersion:app.version,tempFolder:_getTmp(customPath).fsName,
-              compName:comp.name,compFps:comp.frameRate,
-              compDur:comp.duration,compW:comp.width,compH:comp.height};
-    try{
-        rq=app.project.renderQueue.items.add(comp);
-        var om=rq.outputModule(1);
-        info.templates=om.templates;
-        rq.remove(); rq=null;
-    }catch(e){
-        if(rq){ try{ rq.remove(); }catch(re){} }
-        info.rqError=e.toString();
-    }
-    return JSON.stringify({ok:true,info:info});
 }
 
 // ── readMarkersFromLayer ──────────────────────────────────
@@ -658,14 +590,6 @@ function getLayerName(){
     }catch(e){ return ""; }
 }
 
-function seekFrame(timeSec){
-    try{
-        var comp=app.project.activeItem;
-        if(!comp||!(comp instanceof CompItem)) return "no_comp";
-        comp.time=timeSec; return "ok";
-    }catch(e){ return "err"; }
-}
-
 function goToScene(startSec,durSec){
     try{
         var comp=app.project.activeItem;
@@ -728,58 +652,6 @@ function splitAtCuts(cutTimesJson){
     return JSON.stringify({ok:true,count:count});
 }
 
-
-// ══════════════════════════════════════════════════════════
-// BATCH THUMBNAIL ENGINE — v5.5 optimization
-// Renders multiple scene frames in one script call, reducing
-// per-call overhead from CEP bridge significantly
-// ══════════════════════════════════════════════════════════
-function captureSceneFramesBatch(batchJson, customPath){
-    var batch;
-    try{ batch=JSON.parse(batchJson); }catch(e){ return JSON.stringify({ok:false,msg:"Parse error"}); }
-    if(!batch||!batch.length) return JSON.stringify({ok:false,msg:"Empty batch"}); 
-    
-    var comp=app.project.activeItem;
-    if(!comp||!(comp instanceof CompItem)) return JSON.stringify({ok:false,msg:"No active comp"});
-    
-    var tmpFolder=_getTmp(customPath);
-    var results=[];
-    
-    for(var b=0;b<batch.length;b++){
-        var item=batch[b];
-        var idx=item.idx;
-        var start_sec=item.start_sec;
-        var dur_sec=item.dur_sec;
-        
-        // Snap frame: use midpoint of scene for better representation
-        var snapSec = start_sec + Math.min(dur_sec * 0.1, 0.5);
-        var outFile=new File(tmpFolder.fullName+"/sed_thumb_"+idx+"_"+Math.floor(snapSec*1000)+".png");
-        
-        var found=null;
-        try{
-            // Try saveFrameToPng first (fastest method)
-            comp.saveFrameToPng(snapSec, outFile);
-            found=_waitForOut(outFile, 2000);
-        }catch(e1){
-            found=null;
-        }
-        
-        if(found){
-            var b64=_b64(found);
-            if(b64){
-                results.push({ok:true, idx:idx, dataURI:"data:image/png;base64,"+b64, path:found.fsName});
-                // Clean up immediately after reading to free disk space
-                try{ found.remove(); }catch(e2){}
-            } else {
-                results.push({ok:true, idx:idx, uri:_fileURI(found), path:found.fsName});
-            }
-        } else {
-            results.push({ok:false, idx:idx, msg:"Frame not captured"});
-        }
-    }
-    
-    return JSON.stringify({ok:true, results:results});
-}
 
 function keepOnlyScenes(scenesJson,allScenesJson){
     var comp=app.project.activeItem;
@@ -1600,17 +1472,6 @@ function getSystemTempPath(){
     }
 }
 
-// getLogFolderPath() — return log folder path so JS can display/open it
-function getLogFolderPath(){
-    try{
-        var lf = _getLogFolder();
-        if(!lf) return JSON.stringify({ok:false,path:""});
-        return JSON.stringify({ok:true,path:lf.fsName});
-    }catch(e){
-        return JSON.stringify({ok:false,path:"",msg:e.toString()});
-    }
-}
-
 // getThumbDiagnostics() — comprehensive thumb pipeline diagnostics
 // Returns detailed info about AE, temp folder, source file, ffmpeg
 function getThumbDiagnostics(customPath){
@@ -1916,14 +1777,6 @@ function launchFFmpegPerFrame(batchJson, ffmpegPath){
     });
 }
 
-// runFFmpegBatch / runFFmpegGroup — kept for backward compat (sync fallback)
-function runFFmpegBatch(batchJson, ffmpegPath){
-    return launchFFmpegPerFrame(batchJson, ffmpegPath);
-}
-function runFFmpegGroup(groupJson, ffmpegPath){
-    return launchFFmpegPerFrame(groupJson, ffmpegPath);
-}
-
 // ══════════════════════════════════════════════════════════
 // FILE-BASED BRIDGE FUNCTIONS
 // Pass data via disk files instead of evalScript strings.
@@ -2172,60 +2025,6 @@ function runThumbGenPy(batchJson, pythonExe){
 }
 
 
-// writeBatchFile(path, content) — write content to file from JSX
-// Used because cep.fs has no writeFile in some CEP versions
-function writeBatchFile(filePath, content){
-    try{
-        var f = new File(filePath);
-        f.encoding = "UTF8";
-        if(!f.open("w")) return JSON.stringify({ok:false, msg:"Cannot open: "+filePath});
-        f.write(content);
-        f.close();
-        return JSON.stringify({ok:true, path:filePath});
-    }catch(e){
-        return JSON.stringify({ok:false, msg:e.toString()});
-    }
-}
-
-// writeCtrlFile(base64Content) — decode base64 and write control file to temp
-// Using base64 completely avoids JSON/backslash escaping in evalScript
-function writeCtrlFile(base64Content){
-    try{
-        // Decode base64 in ExtendScript
-        // ExtendScript has no atob — use manual decode
-        var b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        var decoded  = "";
-        var s = base64Content.replace(/[^A-Za-z0-9+\/]/g, "");
-        for(var i = 0; i < s.length; i += 4){
-            var b0 = b64chars.indexOf(s.charAt(i));
-            var b1 = b64chars.indexOf(s.charAt(i+1));
-            var b2 = s.charAt(i+2) !== "=" ? b64chars.indexOf(s.charAt(i+2)) : 0;
-            var b3 = s.charAt(i+3) !== "=" ? b64chars.indexOf(s.charAt(i+3)) : 0;
-            decoded += String.fromCharCode((b0 << 2) | (b1 >> 4));
-            if(s.charAt(i+2) !== "=") decoded += String.fromCharCode(((b1 & 15) << 4) | (b2 >> 2));
-            if(s.charAt(i+3) !== "=") decoded += String.fromCharCode(((b2 & 3) << 6) | b3);
-        }
-        // Decode UTF-8
-        var utf8 = "";
-        for(var j = 0; j < decoded.length; j++){
-            var c = decoded.charCodeAt(j);
-            if(c < 128){ utf8 += decoded.charAt(j); }
-            else if(c < 224){ utf8 += String.fromCharCode(((c & 31) << 6) | (decoded.charCodeAt(j+1) & 63)); j++; }
-            else { utf8 += String.fromCharCode(((c & 15) << 12) | ((decoded.charCodeAt(j+1) & 63) << 6) | (decoded.charCodeAt(j+2) & 63)); j+=2; }
-        }
-        var ctrlPath = Folder.temp.fsName.replace(/\\/g,"/") + "/sed_thumb_ctrl.json";
-        var ctrlFile = new File(ctrlPath);
-        ctrlFile.encoding = "UTF8";
-        if(!ctrlFile.open("w"))
-            return JSON.stringify({ok:false, msg:"Cannot open ctrl file"});
-        ctrlFile.write(utf8);
-        ctrlFile.close();
-        return JSON.stringify({ok:true, path:ctrlPath});
-    }catch(e){
-        return JSON.stringify({ok:false, msg:"writeCtrlFile error: "+e.toString()});
-    }
-}
-
 // runPendingThumb() — reads control file, runs Python or FFmpeg
 // Control file path: system temp + sed_thumb_ctrl.json
 // JS writes the control file, then calls this with NO arguments
@@ -2420,102 +2219,4 @@ function getFullDiagnostics(customPath, pythonExe, ffmpegPath){
     return JSON.stringify(d);
 }
 
-// ══════════════════════════════════════════════════════════
-// runReadBase64Batch() — reads ctrl file written by writeCtrlFile,
-// decodes each image file to base64, writes all to output JSON.
-// Called with NO parameters (zero escaping issues).
-// Ctrl file contains: {pathsB64: "<b64-encoded paths JSON>", outB64: "<b64-encoded output path>"}
-// ══════════════════════════════════════════════════════════
-function runReadBase64Batch(){
-    var ctrlPath = Folder.temp.fsName.replace(/\\/g,"/") + "/sed_thumb_ctrl.json";
-    var ctrlFile = new File(ctrlPath);
-    if(!ctrlFile.exists)
-        return JSON.stringify({ok:false, msg:"No ctrl file: "+ctrlPath});
 
-    ctrlFile.encoding = "UTF8";
-    ctrlFile.open("r");
-    var ctrlJson = ctrlFile.read();
-    ctrlFile.close();
-    try{ ctrlFile.remove(); }catch(e){}
-
-    var ctrl;
-    try{ ctrl = JSON.parse(ctrlJson); }
-    catch(e){ return JSON.stringify({ok:false, msg:"Ctrl parse: "+e}); }
-
-    // Decode paths and output path from base64
-    var pathsJson = "";
-    var outputPath = "";
-    try{
-        // Simple base64 decode using the existing decoder logic
-        var b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        function _b64decode(s){
-            s = s.replace(/[^A-Za-z0-9+\/]/g,"");
-            var out = "";
-            for(var i=0; i<s.length; i+=4){
-                var b0=b64chars.indexOf(s.charAt(i));
-                var b1=b64chars.indexOf(s.charAt(i+1));
-                var b2=s.charAt(i+2)!=="="?b64chars.indexOf(s.charAt(i+2)):0;
-                var b3=s.charAt(i+3)!=="="?b64chars.indexOf(s.charAt(i+3)):0;
-                out+=String.fromCharCode((b0<<2)|(b1>>4));
-                if(s.charAt(i+2)!=="=") out+=String.fromCharCode(((b1&15)<<4)|(b2>>2));
-                if(s.charAt(i+3)!=="=") out+=String.fromCharCode(((b2&3)<<6)|b3);
-            }
-            return out;
-        }
-        pathsJson  = _b64decode(ctrl.pathsB64 || "");
-        outputPath = _b64decode(ctrl.outB64   || "");
-    }catch(e){
-        return JSON.stringify({ok:false, msg:"Decode error: "+e});
-    }
-
-    var items;
-    try{ items = JSON.parse(pathsJson); }
-    catch(e){ return JSON.stringify({ok:false, msg:"Items parse: "+e}); }
-
-    if(!items || !items.length)
-        return JSON.stringify({ok:false, msg:"No items"});
-
-    _writeLog("ffmpeg","[B64 BATCH] reading "+items.length+" files");
-
-    // Read each file and encode to base64
-    var results = [];
-    for(var i=0; i<items.length; i++){
-        var item = items[i];
-        var f    = new File(item.path);
-        var ok   = false;
-        var uri  = "";
-        if(f.exists && f.length > 200){
-            try{
-                f.encoding = "BINARY";
-                f.open("r");
-                var raw = f.read();
-                f.close();
-                // Encode binary to base64
-                var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-                var out = ""; var len = raw.length;
-                for(var j=0; j<len; j+=3){
-                    var c0=raw.charCodeAt(j)&0xFF;
-                    var c1=j+1<len?raw.charCodeAt(j+1)&0xFF:0;
-                    var c2=j+2<len?raw.charCodeAt(j+2)&0xFF:0;
-                    out+=chars.charAt(c0>>2);
-                    out+=chars.charAt(((c0&3)<<4)|(c1>>4));
-                    out+=j+1<len?chars.charAt(((c1&15)<<2)|(c2>>6)):"=";
-                    out+=j+2<len?chars.charAt(c2&63):"=";
-                }
-                uri = "data:image/jpeg;base64," + out;
-                ok  = true;
-            }catch(e){ ok=false; uri=""; }
-        }
-        results.push({idx:item.idx, ok:ok, dataURI:uri});
-    }
-
-    // Write results to output file
-    var outFile = new File(outputPath);
-    outFile.encoding = "UTF8";
-    if(!outFile.open("w"))
-        return JSON.stringify({ok:false, msg:"Cannot write: "+outputPath});
-    outFile.write(JSON.stringify({ok:true, results:results}));
-    outFile.close();
-    _writeLog("ffmpeg","[B64 BATCH] done "+results.length+" items → "+outputPath);
-    return JSON.stringify({ok:true, count:results.length, outputPath:outputPath});
-}

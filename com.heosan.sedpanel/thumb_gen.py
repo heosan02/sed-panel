@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-thumb_gen.py  —  SED Panel CEP v9.0
+thumb_gen.py  —  SED Panel CEP v9.5
 Fast thumbnail generator using cv2.VideoCapture (no per-frame FFmpeg overhead).
 Called by host.jsx with a JSON jobs file. Returns JSON results to stdout.
 

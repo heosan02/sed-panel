@@ -11,7 +11,7 @@
 - **Thumbnail Cache** â€” JSON-based cache system in temp folder
 - **Merge Scenes** â€” Combine adjacent scenes into a single marker
 - **Cut Layer** â€” Split video layer at all cut points or selected scenes only
-- **Delete Except Selected** â€” Keep only marked scenes, remove the rest
+- **Delete Except Selected** â€” Keep only marked scenes, remove the rest (rewritten with duplicate-remove approach)
 - **Export to Render Queue** â€” Export marked scenes as separate compositions with correct Work Areas
 - **Thumbnail Progress Modal** â€” Visual progress bar, count, ETA, cancel button
 - **Custom Temp Folder** â€” User-configurable temp folder via Settings
@@ -20,7 +20,7 @@
 ## Installation
 
 ### Option 1 â€” Inno Setup Installer
-Download `SED_Panel_v3.0_Setup.exe` from [Releases](https://github.com/heosan02/sed-panel/releases), run it, and follow the instructions.
+Download `SED_Panel_v3.1_Setup.exe` from [Releases](https://github.com/heosan02/sed-panel/releases), run it, and follow the instructions.
 
 ### Option 2 â€” Manual Installation
 1. Download the source from the latest release

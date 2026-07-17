@@ -2,6 +2,25 @@
 
 All notable changes to SED Panel will be documented here.
 
+## [3.1.0] — 2026-07-10
+
+### Added
+- keepOnlyScenes rewritten: duplicates kept scenes then removes original (reverse order)
+- Scene naming uses layer.name instead of source.name
+- Export RQ: skipQueue parameter for Manual mode
+- Export RQ: workAreaDuration clamp for floating point safety
+
+### Changed
+- Keep Selected scenes now uses duplicate-remove approach instead of split-then-delete
+- Custom naming format: {name}_1 (bottom) to {name}_N (top)
+
+### Removed
+- readThumbDataURI() — logic inlined into acceptThumb
+- _calcSourceSec() — replaced by _calcSourceSecForScene()
+
+### Compatibility
+- Adobe After Effects 2022 (v22.0) through 2026 (v26.0)
+
 ## [3.0.0] — 2026-07-05
 
 ### Added

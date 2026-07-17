@@ -11,7 +11,7 @@ html, body {
   pointer-events: auto !important;
 }
 /* ═══════════════════════════════════════════════════════
-   SED Panel v9.0 — style.css
+   SED Panel v9.5 — style.css
    Design: Linear-inspired · Sharp · Minimal · Dark
    © 2026 Heosan
 ═══════════════════════════════════════════════════════ */
@@ -69,13 +69,11 @@ html, body {
   --r:   3px;
   --r2:  6px;
   --r3:  10px;
-  --r4:  14px;
 
   /* Transitions */
   --t-fast:  80ms cubic-bezier(.2,.8,.3,1);
   --t-mid:   140ms cubic-bezier(.2,.8,.3,1);
   --t-slow:  220ms cubic-bezier(.2,.8,.3,1);
-  --trans:   var(--t-mid);
 }
 
 /* ── Reset ── */
@@ -130,18 +128,6 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   padding: 12px 12px 11px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-}
-#logo-icon {
-  width: 36px;
-  height: 36px;
-  background: var(--accent);
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  padding: 4px;
-  box-shadow: 0 0 0 1px rgba(94,106,210,.5), 0 4px 12px rgba(94,106,210,.3);
 }
 #logo-text { display: flex; flex-direction: column; gap: 1px; line-height: 1; }
 #logo-title {
@@ -618,27 +604,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ════════════════════════════════════════════════════ */
 #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 
-/* ── Topbar ── */
-#topbar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: nowrap;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  background: var(--bg1);
-  min-height: 42px;
-}
-#scene-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  flex-wrap: nowrap;
-  min-width: 0;
-  overflow: hidden;
-}
+/* ── Info chips & mark toggle ── */
 .info-chip { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
 .info-chip.inout {
   display: flex;
@@ -699,8 +665,6 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 
 /* Transport */
-#transport { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; flex-shrink: 0; }
-.t-group  { display: flex; align-items: center; gap: 1px; }
 .t-btn {
   background: transparent;
   border: 1px solid var(--border);
@@ -1683,8 +1647,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ════════════════════════════════════════════════════ */
 @media (max-width: 440px) {
   #topbar     { flex-wrap: wrap; }
-  #scene-info { flex-wrap: wrap; }
+  #scene-info-primary { flex-wrap: wrap; }
   .info-chip.inout { flex-wrap: wrap; }
+  #topbar-row2 { flex-wrap: wrap; }
 }
 
 /* ════════════════════════════════════════════════════
@@ -1702,7 +1667,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .overlay, #onboard-overlay { transform: translateZ(0); }
 
 /* ════════════════════════════════════════════════════
-   v9.0 — Topbar 2-row collapsible + Logo + Transport
+   v9.5 — Topbar 2-row collapsible + Logo + Transport
 ════════════════════════════════════════════════════ */
 
 /* ── Logo icon: proper sizing ── */
@@ -1802,11 +1767,6 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Keep chip-val + chip-label inline */
 #topbar-row2 .chip-label { flex-shrink: 0; }
 #topbar-row2 .chip-val   { flex-shrink: 0; }
-
-/* Responsive fallback */
-@media (max-width: 440px) {
-  #topbar-row2 { flex-wrap: wrap; }
-}
 
 /* ── About logo icon (match sidebar) ── */
 #about-logo-icon {
