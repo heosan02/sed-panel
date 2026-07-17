@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 thumb_gen.py  —  SED Panel CEP v9.5
 Fast thumbnail generator using cv2.VideoCapture.

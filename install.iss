@@ -25,7 +25,7 @@ PrivilegesRequired=lowest
 DisableWelcomePage=yes
 DisableFinishedPage=no
 ShowLanguageDialog=no
-LicenseFile=LICENSE.txt
+LicenseFile={#SrcDir}\LICENSE
 
 [Messages]
 FinishedLabel=Setup has finished installing %1 on your computer.%n%nRestart After Effects, then open the panel via Window > Extensions > SED Panel.

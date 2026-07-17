@@ -1,4 +1,4 @@
-﻿/* â•â• Panel isolation â€” prevent other CEP panels affecting our styles â•â• */
+﻿/* ══ Panel isolation — prevent other CEP panels affecting our styles ══ */
 html, body {
   isolation: isolate;
   visibility: visible !important;
@@ -10,16 +10,16 @@ html, body {
   opacity: 1 !important;
   pointer-events: auto !important;
 }
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   SED Panel v9.5 â€” style.css
-   Design: Linear-inspired Â· Sharp Â· Minimal Â· Dark
-   Â(C) 2026 Heosan
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ═══════════════════════════════════════════════════════
+   SED Panel v9.5 — style.css
+   Design: Linear-inspired · Sharp · Minimal · Dark
+   © 2026 Heosan
+═══════════════════════════════════════════════════════ */
 
-/* â”€â”€ Google Fonts fallback (loaded in HTML) â”€â”€ */
+/* ── Google Fonts fallback (loaded in HTML) ── */
 @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
 
-/* â”€â”€ Design Tokens â”€â”€ */
+/* ── Design Tokens ── */
 :root {
   /* Surfaces */
   --bg:       #0a0a0b;
@@ -34,7 +34,7 @@ html, body {
   --border2:  #2a2a30;
   --border3:  #363640;
 
-  /* Accent â€” Linear-style violet-blue */
+  /* Accent — Linear-style violet-blue */
   --accent:   #5e6ad2;
   --accent2:  #4f5bc4;
   --accent3:  rgba(94,106,210,.15);
@@ -76,7 +76,7 @@ html, body {
   --t-slow:  220ms cubic-bezier(.2,.8,.3,1);
 }
 
-/* â”€â”€ Reset â”€â”€ */
+/* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   width: 100%; height: 100%;
@@ -92,9 +92,9 @@ html, body {
 button { cursor: pointer; outline: none; }
 button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════
    LAYOUT
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+════════════════════════════════════════════════════ */
 #app {
   display: flex;
   height: 100vh;
@@ -102,9 +102,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   background: var(--bg);
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════
    SIDEBAR
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+════════════════════════════════════════════════════ */
 #sidebar {
   width: 216px;
   min-width: 196px;
@@ -120,7 +120,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 #sidebar::-webkit-scrollbar { display: none; }
 
-/* â”€â”€ Logo â”€â”€ */
+/* ── Logo ── */
 #logo {
   display: flex;
   align-items: center;
@@ -149,7 +149,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   gap: 2px;
 }
 
-/* â”€â”€ Sidebar sections â”€â”€ */
+/* ── Sidebar sections ── */
 .sb-section {
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
@@ -166,7 +166,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   padding: 0 2px;
 }
 
-/* â”€â”€ Status â”€â”€ */
+/* ── Status ── */
 #status-wrap {
   display: flex;
   align-items: flex-start;
@@ -205,7 +205,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   flex: 1;
 }
 
-/* â”€â”€ Layer field â”€â”€ */
+/* ── Layer field ── */
 .field-row { display: flex; flex-direction: column; gap: 3px; }
 .field-label {
   font-size: 9px;
@@ -244,7 +244,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .icon-btn:hover { border-color: var(--border3); color: var(--text); }
 
-/* â”€â”€ Detect button â”€â”€ */
+/* ── Detect button ── */
 #detect-wrap { width: 100%; }
 
 .btn-detect {
@@ -291,8 +291,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   50%      { box-shadow: 0 0 0 1px rgba(94,106,210,.6), 0 0 16px rgba(94,106,210,.3); }
 }
 
-/* â”€â”€ Read Markers â”€â”€ */
-/* â”€â”€ Read Markers â€” same visual language as Thumbs â”€â”€ */
+/* ── Read Markers ── */
+/* ── Read Markers — same visual language as Thumbs ── */
 .btn-row-read {
   display: flex;
   gap: 4px;
@@ -340,7 +340,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 @keyframes pulse-accent { from{opacity:.5} to{opacity:1} }
 
-/* â”€â”€ Cancel button (shared by Read and Thumbs rows) â”€â”€ */
+/* ── Cancel button (shared by Read and Thumbs rows) ── */
 .btn-cancel-side {
   flex: 0 0 auto;
   width: 26px;
@@ -361,7 +361,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   color: #fff;
 }
 
-/* â”€â”€ Thumb row â”€â”€ */
+/* ── Thumb row ── */
 .btn-row-thumb {
   display: flex;
   gap: 4px;
@@ -396,7 +396,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .btn-clean-side:hover { border-color: var(--border3); color: var(--text2); }
 
-/* â”€â”€ Merge Scene row â”€â”€ */
+/* ── Merge Scene row ── */
 .btn-row-merge {
   display: flex;
   gap: 4px;
@@ -449,7 +449,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   animation: pulse-accent .8s ease-in-out infinite alternate;
 }
 
-/* â”€â”€ Stats row â”€â”€ */
+/* ── Stats row ── */
 #stats-row {
   display: flex;
   gap: 3px;
@@ -483,7 +483,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   margin-top: 3px;
 }
 
-/* â”€â”€ Scene list â”€â”€ */
+/* ── Scene list ── */
 #scene-list-wrap {
   flex: 1;
   min-height: 80px;
@@ -532,7 +532,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   font-size: 11px;
 }
 
-/* â”€â”€ Filter buttons â”€â”€ */
+/* ── Filter buttons ── */
 .btn-row { display: flex; gap: 3px; }
 .btn-sm {
   flex: 1;
@@ -553,10 +553,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .btn-sm-danger:hover { background: var(--danger2); border-color: var(--danger); }
 
-/* â”€â”€ Divider â”€â”€ */
+/* ── Divider ── */
 .divider { border: none; border-top: 1px solid var(--border); flex-shrink: 0; }
 
-/* â”€â”€ Action buttons â”€â”€ */
+/* ── Action buttons ── */
 #actions { display: flex; flex-direction: column; gap: 2px; }
 .action-btn {
   display: flex;
@@ -599,12 +599,12 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   padding: 8px 0;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════
    MAIN PANEL
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+════════════════════════════════════════════════════ */
 #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 
-/* â”€â”€ Info chips & mark toggle â”€â”€ */
+/* ── Info chips & mark toggle ── */
 .info-chip { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
 .info-chip.inout {
   display: flex;
@@ -704,7 +704,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .t-hi { border-color: rgba(94,106,210,.3); color: var(--accent); }
 .t-hi:hover { background: var(--accent3); border-color: var(--accent); }
 
-/* â”€â”€ Grid header â”€â”€ */
+/* ── Grid header ── */
 #grid-header {
   display: flex;
   align-items: center;
@@ -771,7 +771,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   color: #fff;
 }
 
-/* â”€â”€ Grid scroll â”€â”€ */
+/* ── Grid scroll ── */
 #grid-scroll {
   flex: 1;
   overflow-y: auto;
@@ -794,9 +794,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .grid-empty::before { content: '🎬'; font-size: 28px; opacity: .25; }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   SCENE CARD â€” Linear-inspired
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ════════════════════════════════════════════════════
+   SCENE CARD — Linear-inspired
+════════════════════════════════════════════════════ */
 .scene-card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -947,9 +947,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   color: var(--text3);
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════
    SCROLLBARS
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+════════════════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -959,9 +959,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border3); }
 ::-webkit-scrollbar-corner { background: transparent; }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   MODALS â€” Overlay
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ════════════════════════════════════════════════════
+   MODALS — Overlay
+════════════════════════════════════════════════════ */
 .overlay {
   position: fixed;
   inset: 0;
@@ -1130,7 +1130,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .about-sys-warn { border-color: rgba(217,119,6,.2); color: var(--warn); }
 .about-sys-warn:hover { background: var(--warn2); border-color: rgba(217,119,6,.5); }
 
-/* â”€â”€ Update notification toggle â”€â”€ */
+/* ── Update notification toggle ── */
 #update-notif-row {
   display: flex;
   align-items: center;
@@ -1226,7 +1226,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .toggle-btn:hover { border-color: var(--border3); }
 
-/* â”€â”€ Update notification popup â”€â”€ */
+/* ── Update notification popup ── */
 #update-modal {
   background: var(--bg1);
   border: 1px solid var(--border2);
@@ -1368,12 +1368,12 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 #settings-close:hover { background: #6672d8; }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════
    THUMBNAIL PROGRESS MODAL
-   Shown every time thumbnail generation runs â€” keeps AE
+   Shown every time thumbnail generation runs — keeps AE
    responsive (non-blocking pipeline) while giving the user
-   a clear visual 1/N â†’ N/N progress indicator.
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   a clear visual 1/N → N/N progress indicator.
+════════════════════════════════════════════════════ */
 #thumb-progress-modal {
   background: var(--bg1);
   border: 1px solid var(--border2);
@@ -1449,10 +1449,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 #thumb-progress-cancel:hover { background: rgba(229,72,77,.25); border-color: var(--danger); color: #fff; }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   MERGE SCENE â€” WARNING / INFO MODAL
+/* ════════════════════════════════════════════════════
+   MERGE SCENE — WARNING / INFO MODAL
    Reuses #about-modal-style sizing for visual consistency.
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+════════════════════════════════════════════════════ */
 #merge-modal {
   background: var(--bg1);
   border: 1px solid var(--border2);
@@ -1499,9 +1499,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 #merge-modal-close:hover { background: #6672d8; }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════
    RQ WARN (Export freeze warning)
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+════════════════════════════════════════════════════ */
 #rq-warn-modal {
   background: var(--bg1);
   border: 1px solid var(--border2);
@@ -1539,9 +1539,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .rq-warn-manual:hover { background: var(--bg4); }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════
    ONBOARDING
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+════════════════════════════════════════════════════ */
 #onboard-overlay {
   position: fixed;
   inset: 0;
@@ -1723,15 +1723,15 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ob-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .ob-btn-primary:hover:not(:disabled) { background: #6672d8; }
 
-/* â”€â”€ Language row in onboarding â”€â”€ */
+/* ── Language row in onboarding ── */
 .ob-lang-row {
   margin-bottom: 6px;
   width: 100%;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════
    AE COMPAT NOTICE
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+════════════════════════════════════════════════════ */
 #ae-compat-notice {
   width: 100%;
   background: rgba(229,72,77,.06);
@@ -1747,9 +1747,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ae-compat-sub  { font-size: 10px; color: var(--text2); text-align: center; line-height: 1.5; }
 .ae-compat-ver  { font-size: 9px; color: var(--text3); text-align: center; font-family: var(--font-mono); margin-top: 2px; }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════
    RESPONSIVE
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+════════════════════════════════════════════════════ */
 @media (max-width: 440px) {
   #topbar     { flex-wrap: wrap; }
   #scene-info-primary { flex-wrap: wrap; }
@@ -1757,9 +1757,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   #topbar-row2 { flex-wrap: wrap; }
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════
    PERFORMANCE OPTIMIZATIONS
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+════════════════════════════════════════════════════ */
 .scene-card, .action-btn, .t-btn, .btn-detect,
 .btn-read, .mark-toggle, .col-btn, .lang-btn {
   -webkit-tap-highlight-color: transparent;
@@ -1781,11 +1781,11 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   display: block;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   v9.5 â€” Topbar 2-row collapsible + Logo + Transport
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ════════════════════════════════════════════════════
+   v9.5 — Topbar 2-row collapsible + Logo + Transport
+════════════════════════════════════════════════════ */
 
-/* â”€â”€ Logo icon: proper sizing â”€â”€ */
+/* ── Logo icon: proper sizing ── */
 #logo-icon {
   width: 36px;
   height: 36px;
@@ -1799,7 +1799,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   box-shadow: 0 0 0 1px rgba(94,106,210,.5), 0 3px 10px rgba(94,106,210,.3);
 }
 
-/* â”€â”€ Topbar: flex-column now to hold 2 rows â”€â”€ */
+/* ── Topbar: flex-column now to hold 2 rows ── */
 #topbar {
   display: flex;
   flex-direction: column;
@@ -1810,7 +1810,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   background: var(--bg1);
 }
 
-/* â”€â”€ Row 1: scene + mark + transport â”€â”€ */
+/* ── Row 1: scene + mark + transport ── */
 #topbar-row1 {
   display: flex;
   align-items: center;
@@ -1838,7 +1838,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   gap: 3px;        /* <-- gap di dalam grup nav */
 }
 
-/* â”€â”€ Row 2: IN OUT DUR collapsible â”€â”€ */
+/* ── Row 2: IN OUT DUR collapsible ── */
 #topbar-row2 {
   display: flex;
   align-items: center;
@@ -1857,7 +1857,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     padding    240ms cubic-bezier(.2,.8,.3,1),
     transform  220ms cubic-bezier(.2,.8,.3,1);
 }
-/* Collapsed state â€” class di-toggle oleh JS via ResizeObserver */
+/* Collapsed state — class di-toggle oleh JS via ResizeObserver */
 #topbar-row2.collapsed {
   max-height: 0;
   opacity: 0;
@@ -1883,7 +1883,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #topbar-row2 .chip-label { flex-shrink: 0; }
 #topbar-row2 .chip-val   { flex-shrink: 0; }
 
-/* â”€â”€ About logo icon (match sidebar) â”€â”€ */
+/* ── About logo icon (match sidebar) ── */
 #about-logo-icon {
   width: 68px;
   height: 68px;
@@ -1897,7 +1897,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   margin-bottom: 2px;
 }
 
-/* â”€â”€ Interactive Hover Button (adapted from shadcn InteractiveHoverButton) â”€â”€ */
+/* ── Interactive Hover Button (adapted from shadcn InteractiveHoverButton) ── */
 .btn-i {
   position: relative;
   overflow: hidden;

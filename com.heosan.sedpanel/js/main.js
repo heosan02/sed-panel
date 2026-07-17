@@ -1,4 +1,4 @@
-/* SED Panel v3.2 - main.js - (c) 2026 Heosan */
+﻿/* SED Panel v3.2 - main.js - (c) 2026 Heosan */
 /* global CSInterface */
 (function(){
 "use strict";
