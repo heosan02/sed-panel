@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>SED Panel v2.0</title>
+  <title>SED Panel v2.1</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@500;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
@@ -16,15 +16,21 @@
 <div id="onboard-overlay" class="hidden">
   <div id="onboard-box">
     <div id="onboard-header">
-      <svg width="28" height="28" viewBox="0 0 22 22" fill="none">
-        <rect x="1" y="1" width="20" height="20" rx="3" stroke="var(--accent)" stroke-width="1.5"/>
-        <line x1="7" y1="1" x2="7" y2="21" stroke="var(--accent)" stroke-width="1.5"/>
-        <line x1="14" y1="1" x2="14" y2="21" stroke="var(--accent)" stroke-width="1.5"/>
-        <rect x="3" y="8" width="2" height="6" rx="1" fill="var(--accent)"/>
-        <rect x="9" y="5" width="3" height="12" rx="1" fill="var(--accent)"/>
-        <rect x="16" y="9" width="2" height="4" rx="1" fill="var(--accent)"/>
-      </svg>
-      <span id="onboard-title">SED Panel v2.0</span>
+            <div id="logo-icon">
+        <svg width="100%" height="100%" viewBox="8 15 80 68" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="14" y="29" width="68" height="38" rx="6"
+    fill="none" stroke="white" stroke-opacity=".35" stroke-width="2.5"/>
+  <rect x="23" y="31" width="13" height="33" rx="6.5"
+    fill="white" fill-opacity=".95"
+    transform="rotate(-10 29.5 47.5)"/>
+  <circle cx="26" cy="27" r="7.5" fill="white" fill-opacity=".95"/>
+  <rect x="60" y="34" width="13" height="27" rx="6.5"
+    fill="white" fill-opacity=".80"
+    transform="rotate(-10 66.5 47.5)"/>
+  <circle cx="63" cy="30" r="7.5" fill="white" fill-opacity=".80"/>
+</svg>
+      </div>
+      <span id="onboard-title">SED Panel v2.1</span>
       <button id="onboard-skip" class="ob-skip">Skip</button>
     </div>
 
@@ -162,18 +168,22 @@
   <div id="sidebar">
     <div id="logo">
       <div id="logo-icon">
-        <svg width="24" height="24" viewBox="0 0 22 22" fill="none">
-          <rect x="1" y="1" width="20" height="20" rx="3" stroke="var(--accent)" stroke-width="1.5"/>
-          <line x1="7" y1="1" x2="7" y2="21" stroke="var(--accent)" stroke-width="1.5"/>
-          <line x1="14" y1="1" x2="14" y2="21" stroke="var(--accent)" stroke-width="1.5"/>
-          <rect x="3" y="8" width="2" height="6" rx="1" fill="var(--accent)"/>
-          <rect x="9" y="5" width="3" height="12" rx="1" fill="var(--accent)"/>
-          <rect x="16" y="9" width="2" height="4" rx="1" fill="var(--accent)"/>
-        </svg>
+        <svg width="100%" height="100%" viewBox="8 15 80 68" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="14" y="29" width="68" height="38" rx="6"
+    fill="none" stroke="white" stroke-opacity=".35" stroke-width="2.5"/>
+  <rect x="23" y="31" width="13" height="33" rx="6.5"
+    fill="white" fill-opacity=".95"
+    transform="rotate(-10 29.5 47.5)"/>
+  <circle cx="26" cy="27" r="7.5" fill="white" fill-opacity=".95"/>
+  <rect x="60" y="34" width="13" height="27" rx="6.5"
+    fill="white" fill-opacity=".80"
+    transform="rotate(-10 66.5 47.5)"/>
+  <circle cx="63" cy="30" r="7.5" fill="white" fill-opacity=".80"/>
+</svg>
       </div>
       <div id="logo-text">
         <span id="logo-title">SED PANEL</span>
-        <span id="logo-ver">v2.0</span>
+        <span id="logo-ver">v2.1</span>
       </div>
       <button id="settings-btn" class="icon-btn" title="Settings" style="margin-left:auto">âš™</button>
       <button id="about-btn" class="icon-btn" title="About">?</button>
@@ -277,31 +287,35 @@
   <!-- â•â•â• MAIN â•â•â• -->
   <div id="main">
     <div id="topbar">
-      <div id="scene-info">
-        <div class="info-chip" id="chip-scene">
-          <span class="chip-label" data-i18n="scene">SCENE</span>
-          <span class="chip-val large" id="info-scene">â€”</span>
+      <!-- Row 1: Scene # + Mark + Transport -->
+      <div id="topbar-row1">
+        <div id="scene-info-primary">
+          <div class="info-chip" id="chip-scene">
+            <span class="chip-label" data-i18n="scene">SCENE</span>
+            <span class="chip-val large" id="info-scene">â€”</span>
+          </div>
+          <button id="mark-btn" class="mark-toggle" data-i18n="mark">â—‹ Mark</button>
         </div>
-        <div class="info-divider"></div>
-        <div class="info-chip inout">
-          <span class="chip-label">IN</span><span class="chip-val mono" id="info-in">â€”</span>
-          <span class="chip-label">OUT</span><span class="chip-val mono" id="info-out">â€”</span>
-          <span class="chip-label" data-i18n="dur">DUR</span><span class="chip-val mono" id="info-dur">â€”</span>
+        <div id="transport">
+          <div class="t-group">
+            <button id="nav-first" class="t-btn">â®</button>
+            <button id="nav-prev"  class="t-btn">â—€</button>
+            <span id="slide-counter">â€” / â€”</span>
+            <button id="nav-next"  class="t-btn">â–¶</button>
+            <button id="nav-last"  class="t-btn">â­</button>
+          </div>
         </div>
-        <button id="mark-btn" class="mark-toggle" data-i18n="mark">â—‹ Mark</button>
       </div>
-      <div id="transport">
-        <div class="t-group">
-          <button id="nav-first" class="t-btn">â®</button>
-          <button id="nav-prev"  class="t-btn">â—€</button>
-          <span id="slide-counter">â€” / â€”</span>
-          <button id="nav-next"  class="t-btn">â–¶</button>
-          <button id="nav-last"  class="t-btn">â­</button>
-        </div>
-        <div class="t-sep"></div>
-        <button id="go-btn"   class="t-action" data-i18n="go_frame">Go to Frame</button>
-        <button id="ram-btn"  class="t-action t-hi">âš¡ RAM</button>
-
+      <!-- Row 2: IN OUT DUR collapsible -->
+      <div id="topbar-row2" class="inout-row">
+        <span class="chip-label">IN</span>
+        <span class="chip-val mono" id="info-in">â€”</span>
+        <span class="info-sep"></span>
+        <span class="chip-label">OUT</span>
+        <span class="chip-val mono" id="info-out">â€”</span>
+        <span class="info-sep"></span>
+        <span class="chip-label" data-i18n="dur">DUR</span>
+        <span class="chip-val mono" id="info-dur">â€”</span>
       </div>
     </div>
 
@@ -334,17 +348,23 @@
     <button id="about-close-x" class="about-close-x">Ã—</button>
 
     <div id="about-logo">
-      <svg width="52" height="52" viewBox="0 0 22 22" fill="none">
-        <rect x="1" y="1" width="20" height="20" rx="3" stroke="var(--accent)" stroke-width="1.5"/>
-        <line x1="7" y1="1" x2="7" y2="21" stroke="var(--accent)" stroke-width="1.5"/>
-        <line x1="14" y1="1" x2="14" y2="21" stroke="var(--accent)" stroke-width="1.5"/>
-        <rect x="3" y="8" width="2" height="6" rx="1" fill="var(--accent)"/>
-        <rect x="9" y="5" width="3" height="12" rx="1" fill="var(--accent)"/>
-        <rect x="16" y="9" width="2" height="4" rx="1" fill="var(--accent)"/>
-      </svg>
+      <div id="about-logo-icon">
+        <svg width="100%" height="100%" viewBox="8 15 80 68" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="14" y="29" width="68" height="38" rx="6"
+    fill="none" stroke="white" stroke-opacity=".35" stroke-width="2.5"/>
+  <rect x="23" y="31" width="13" height="33" rx="6.5"
+    fill="white" fill-opacity=".95"
+    transform="rotate(-10 29.5 47.5)"/>
+  <circle cx="26" cy="27" r="7.5" fill="white" fill-opacity=".95"/>
+  <rect x="60" y="34" width="13" height="27" rx="6.5"
+    fill="white" fill-opacity=".80"
+    transform="rotate(-10 66.5 47.5)"/>
+  <circle cx="63" cy="30" r="7.5" fill="white" fill-opacity=".80"/>
+</svg>
+      </div>
     </div>
     <div id="about-name">SED PANEL</div>
-    <div id="about-version">v2.0.0 Â· Scene Edit Detection</div>
+    <div id="about-version">v2.1.0 Â· Scene Edit Detection</div>
     <div id="about-desc" data-i18n="about_desc">Scene Edit Detection Panel for Adobe After Effects.</div>
 
     <!-- Links -->
@@ -358,6 +378,17 @@
     <button id="open-tutorial-btn" class="about-section-btn about-section-tutorial">
       ðŸ“– <span data-i18n="tutorial_btn">Tutorial â€” Panduan Penggunaan</span>
     </button>
+
+    <!-- Update notification -->
+    <div class="about-section-title">UPDATE</div>
+    <div id="update-notif-row">
+      <div id="update-notif-info">
+        <div id="update-notif-label" data-i18n="update_notif">Update Notification</div>
+        <div id="update-notif-desc" data-i18n="update_notif_desc">Check for new SED Panel releases on GitHub.</div>
+      </div>
+      <button id="update-notif-toggle" class="toggle-btn on" data-state="on">On</button>
+    </div>
+    <button id="update-status-btn" class="update-status-btn check">Check</button>
 
     <!-- System section -->
     <div class="about-section-title" data-i18n="system_title">SISTEM</div>
@@ -407,7 +438,22 @@
   </div>
 </div>
 
+<!-- UPDATE NOTIFICATION POPUP -->
+<div id="update-overlay" class="overlay hidden">
+  <div id="update-modal">
+    <div id="update-modal-icon">ðŸ”„</div>
+    <div id="update-modal-title" data-i18n="update_title">Update Available</div>
+    <div id="update-modal-msg" data-i18n="update_msg">A new version of SED Panel is available!</div>
+    <div id="update-modal-detail">â€”</div>
+    <div class="update-modal-btns">
+      <button id="update-modal-later" class="update-btn-later" data-i18n="update_later">Later</button>
+      <button id="update-modal-view" class="update-btn-view" data-i18n="update_view">View Release</button>
+    </div>
+    <div id="update-modal-note" data-i18n="update_note">If notification is annoying, turn it off in About.</div>
+  </div>
+</div>
+
 <script src="js/CSInterface.js"></script>
-<script src="js/main.js?v=6.1.0"></script>
+<script src="js/main.js?v=7.5.0"></script>
 </body>
 </html>

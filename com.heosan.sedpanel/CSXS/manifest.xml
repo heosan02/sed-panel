@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <ExtensionManifest
     ExtensionBundleId="com.heosan.sedpanel"
-    ExtensionBundleVersion="2.0.0"
+    ExtensionBundleVersion="2.1.0"
     ExtensionBundleName="SED Panel"
     Version="6.0">
   <ExtensionList>
-    <Extension Id="com.heosan.sedpanel.panel" Version="2.0.0"/>
+    <Extension Id="com.heosan.sedpanel.panel" Version="2.1.0"/>
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
@@ -29,6 +29,8 @@
           CSXS 8  = AE 2020           |  CSXS 9  = AE 2021
           CSXS 10 = AE 2022           |  CSXS 11 = AE 2023
           CSXS 12 = AE 2024-2026
+        Setting minimum to 6.0 allows all supported versions.
+        AE 2026 (v26.x) ships with CSXS 12 — must be declared here.
       -->
       <RequiredRuntime Name="CSXS" Version="6.0"/>
     </RequiredRuntimeList>

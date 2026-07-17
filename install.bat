@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableDelayedExpansion
-title SED Panel CEP v2.0 - Installer
+title SED Panel CEP v2.1 - Installer
 
 echo.
 echo  =====================================================
-echo   SED Panel CEP  v2.0  ^|  Auto Installer
+echo   SED Panel CEP  v2.1  ^|  Auto Installer
 echo   (c) 2026 Heosan
 echo  =====================================================
 echo.
@@ -210,7 +210,7 @@ if "%ALL_OK%"=="0" (
 :: SELESAI
 :: ════════════════════════════════════════════════════════
 echo  =====================================================
-echo   INSTALASI SELESAI!  SED Panel CEP v2.0
+echo   INSTALASI SELESAI!  SED Panel CEP v2.1
 echo  =====================================================
 echo.
 echo  Terinstall di:

@@ -1,5 +1,5 @@
 // ============================================================
-// host.jsx  -  SED Panel CEP  v2.0
+// host.jsx  -  SED Panel CEP  v2.1
 
 // ══════════════════════════════════════════════════════════
 // AE VERSION DETECTION — called on panel startup
@@ -9,8 +9,12 @@
 function getAEVersion(){
     var raw="unknown", num=0, name="Unknown", sedSupport=false;
     try{
-        raw = app.version;           // e.g. "22.6.0 (Build 2)"
-        num = parseFloat(raw);       // 22.6
+        raw = app.version;           // e.g. "26.1.0 (Build 12)" on AE 2026
+        // parseFloat stops at first non-numeric char after decimal,
+        // but "26.1.0" → parseFloat gives 26.1 which is correct.
+        // Strip any parenthetical suffix first for safety.
+        var clean = raw.replace(/\s*\(.*$/,"").replace(/[^0-9.]/g,"");
+        num = parseFloat(clean) || 0;
     }catch(e){ raw="unknown"; num=0; }
 
     // Map version number to product name
@@ -413,27 +417,51 @@ function runDetect(sensitivity){
     var layer=_getActiveLayer(comp);
     if(!layer) return JSON.stringify({ok:false,msg:"No footage layer found.\nSelect a video layer in Timeline."});
 
-    // Detect AE version: Scene Edit Detection native API available in AE 2022 (v22.0+)
+    // Detect AE version: match parsing logic used in getAEVersion()
+    // parseFloat("26.1.0 (Build 12)") only gives 26 — need to strip suffix first
     var aeVer=0;
-    try{ aeVer=parseFloat(app.version); }catch(ev){}
+    try{
+        var rawVer=app.version;
+        var cleanVer=rawVer.replace(/\s*\(.*$/,"").replace(/[^0-9.]/g,"");
+        aeVer=parseFloat(cleanVer)||0;
+    }catch(ev){}
 
     var threshMap={"Low":20,"Medium":50,"High":75};
     app.beginUndoGroup("SED: Detect");
     var ok=false, method="";
 
-    // Strategy 1: Native API (AE 2022+ v22.0+)
+    // Strategy 1: Native API (AE 2022+ v22.0+, including AE 2026 v26.x)
+    // Try multiple call signatures — AE 2025/2026 may behave differently
     if(aeVer>=22){
+        // 1a: Standard: {sensitivity, apply:true}
         try{
             layer.doSceneEditDetection({sensitivity:threshMap[sensitivity]||50,apply:true});
             ok=true; method="native";
-        }catch(e1){ ok=false; }
+        }catch(e1a){ ok=false; }
+
+        // 1b: Without options object (uses AE defaults — fallback for API signature changes)
+        if(!ok){
+            try{
+                layer.doSceneEditDetection();
+                ok=true; method="native_default";
+            }catch(e1b){ ok=false; }
+        }
+
+        // 1c: Sensitivity only, no apply key (some AE 2025/2026 builds)
+        if(!ok){
+            try{
+                layer.doSceneEditDetection({sensitivity:threshMap[sensitivity]||50});
+                ok=true; method="native_noApply";
+            }catch(e1c){ ok=false; }
+        }
     }
 
-    // Strategy 2: Menu command (AE CC 2019-2021 may have it via plugin)
+    // Strategy 2: Menu command (covers edge cases and older AE versions)
     if(!ok){
         try{
             var menuNames=["Scene Edit Detection...","Scene Edit Detection",
-                           "Detect Scene Edit","Scene Edit"];
+                           "Detect Scene Edit","Scene Edit",
+                           "Analyze Footage","Detect Cuts"];
             for(var m=0;m<menuNames.length;m++){
                 var mid=app.findMenuCommandId(menuNames[m]);
                 if(mid){ app.executeCommand(mid); ok=true; method="menu"; break; }
@@ -444,13 +472,12 @@ function runDetect(sensitivity){
     app.endUndoGroup();
 
     if(!ok){
-        // Version-specific message
         var verMsg = aeVer>0 ? "AE version detected: "+app.version : "";
         var needVer = aeVer>0 && aeVer<22;
         return JSON.stringify({ok:false,
             msg:"Scene Edit Detection not available"+(needVer?" on this AE version (requires AE 2022+)":"")+"."
                +"\n\nRun manually:\n  Layer → Scene Edit Detection"
-               +"\n  Choose \'Create Layer Markers\' → OK"
+               +"\n  Choose 'Create Layer Markers' → OK"
                +"\n\nThen click [Read Markers]."
                +(verMsg?"\n\n"+verMsg:"")});
     }

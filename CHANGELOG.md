@@ -2,61 +2,25 @@
 
 All notable changes to SED Panel will be documented here.
 
-## [3.2.0] — 2026-07-16
+## [2.1.0] - 2026-07-01
 
 ### Added
-- Color theme matching heosan.web.app site palette (warm brown/tan, teal accent)
-- Tutorial stepper restyled to React Bits-style (numbered 1-10 circles, active dot, animated connectors)
-- Click spark particle effect on click (canvas-based, 8 sparks, 400ms)
-- Reset thumbnail button alongside refresh layer button
-- beforeunload handler to prevent panel close from closing After Effects
-- Export: capture comp ID at click time to avoid "Invalid composition" on 700+ scenes
+- AE 2025 (v25) compatibility verified
+- Scene grid column switcher (2/3/4/5 columns)
+- Scene card timecodes and thumbnails inline
+- Better error handling for missing temp folder
 
 ### Changed
-- Onboarding stepper: numbered circles with connector lines, clickable up to next step
-- Website URL updated from heosanweb.carrd.co to heosan.web.app
-
-### Removed
-- "Add Comp Markers" button and associated JSX/i18n code
+- Thumbnail grid layout improvements
+- install.bat: broader AE launch path search (2020–2026)
 
 ### Fixed
-- Export to Render Queue: Manual mode now skips Render Queue addition, sets correct Work Areas
-- workAreaDuration clamped to comp duration minus workAreaStart (floating point safety)
-- keepOnlyScenes reverted to v3.1 duplicate approach with layer.name naming
+- Panel visibility on AE 2025 in some configurations
 
-## [3.1.0] — 2026-07-10
+### Compatibility
+- Adobe After Effects 2022 (v22.0) through 2026 (v26.0)
 
-### Added
-- keepOnlyScenes rewritten: duplicates kept scenes then removes original (reverse order)
-- Scene naming uses layer.name instead of source.name
-- Export RQ: skipQueue parameter for Manual mode
-- Export RQ: workAreaDuration clamp for floating point safety
-
-### Changed
-- Keep Selected scenes now uses duplicate-remove approach instead of split-then-delete
-- Custom naming format: {name}_1 (bottom) to {name}_N (top)
-
-## [3.0.0] — 2026-07-05
-
-### Added
-- Multi-layer scene marker reading support
-- Merge adjacent scenes feature
-- Export RQ: warning modal for >100 scenes with Langsung (Add All) and Manual options
-- Thumbnail cache system (JSON cache file in temp folder)
-- Python cv2 thumbnail pipeline for fast batch generation
-- Lazy thumbnail mode via AE saveFrameToPng
-- Custom temp folder picker via Settings
-
-### Changed
-- Thumbnail grid: column switcher (2/3/4/5 columns)
-- Scene cards show timecodes and thumbnails inline
-- Scene list with #, IN, DUR columns
-
-### Fixed
-- Thumbnail not stuck on scene 1-3 anymore
-- Cache miss detection and fallback to regeneration
-
-## [2.0.0] - 2026-06-28
+## [2.0.0] — 2026-06-28
 
 ### Added
 - Support AE 2022 (v22) through 2026 (v26)

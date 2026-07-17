@@ -1,4 +1,4 @@
-/* SED Panel v2.0 - main.js - (c) 2026 Heosan */
+/* SED Panel v2.1 - main.js - (c) 2026 Heosan */
 /* global CSInterface */
 (function(){
 "use strict";
@@ -7,6 +7,10 @@ var cs = new CSInterface();
 var ONBOARD_KEY = "sed_panel_v5_onboarded";
 var LANG_KEY = "sed_panel_lang";
 var TMP_KEY = "sed_panel_custom_tmp";
+var UPDATE_NOTIF_KEY = "sed_panel_update_notif";
+var UPDATE_LATER_KEY = "sed_panel_update_later_at";
+var CUR_VER = "2.1.0";
+var GH_REPO = "heosan02/sed-panel";
 
 // ═══ i18n ══════════════════════════════════════════════
 var LANG="en";
@@ -25,6 +29,16 @@ var T={
     grid_hint:"Ctrl+click=mark · Dbl=mark", col:"Col",
     about_desc:"Scene Edit Detection Panel for Adobe After Effects.",
     language:"Language:", close:"Close",
+    update_notif:"Update Notification",
+    update_notif_desc:"Check for new SED Panel releases on GitHub.",
+    update_on:"On", update_off:"Off", update_uptodate:"Up to date",
+    update_title:"Update Available",
+    update_msg:"A new version of SED Panel is available!",
+    update_later:"Later",
+    update_view:"View Release",
+    update_note:"If notification is annoying, turn it off in About.",
+    update_check:"Check",
+    update_check_fail:"Update check failed.",
     settings_title:"Settings",
     settings_desc:"Panel preferences and thumbnail temp folder.",
     temp_folder:"Temp Folder",
@@ -149,6 +163,16 @@ var T={
     ob_thumb_tip:"Thumbnail dirender oleh AE ke folder temp, lalu dibersihkan otomatis setelah dibaca panel.",
     ob_ready_desc:"Semua fitur utama sudah dijelaskan.<br>Buka <strong>About → Tutorial</strong> kapan saja untuk membuka panduan ini lagi.",
     ob_ready_tip:"Atur bahasa dan folder temp di Settings. Folder temp kustom membantu thumbnail jika AE tidak bisa menulis ke folder ekstensi.",
+    update_notif:"Notifikasi Update",
+    update_notif_desc:"Cek rilis baru SED Panel di GitHub.",
+    update_on:"Nyala", update_off:"Mati", update_uptodate:"Terbaru",
+    update_title:"Update Tersedia",
+    update_msg:"Versi baru SED Panel tersedia!",
+    update_later:"Nanti",
+    update_view:"Lihat Rilis",
+    update_note:"Jika notif mengganggu bisa dimatikan di about.",
+    update_check:"Cek",
+    update_check_fail:"Pengecekan update gagal.",
   }
 };
 function t(k,v){
@@ -167,7 +191,6 @@ var S={
   scenes:[], selected:[], activeIdx:-1,
   detectDone:false, fps:24,
   cols:3,
-  cols:3,
   thumbs:{}, thumbPaths:{}, thumbDone:0, thumbLoading:false,
   diagInfo:null,
   customTmpPath:"",
@@ -176,6 +199,8 @@ var S={
 
 // ═══ DOM helpers ════════════════════════════════════════
 var $=function(id){return document.getElementById(id);};
+// Safe addEventListener: skip jika elemen null (prevents crash chain)
+function _on(id,ev,fn){ var el=$(id); if(el) el.addEventListener(ev,fn); }
 function evalScript(sc,cb){cs.evalScript(sc,function(r){if(cb)cb(r);});}
 var seekTimer=null;
 function scheduleGoToFrame(sec){
@@ -436,6 +461,128 @@ $("link-tiktok").addEventListener("click",function(e){e.preventDefault();cs.open
 $("link-ig").addEventListener("click",function(e){e.preventDefault();cs.openURLInDefaultBrowser("https://www.instagram.com/_heosan/");});
 $("link-web").addEventListener("click",function(e){e.preventDefault();cs.openURLInDefaultBrowser("https://heosanweb.carrd.co/");});
 
+// ═══ Update notification ═════════════════════════════
+var _latestVer = null; // tag of latest GitHub release (null = unchecked/error)
+
+function _loadUpdateNotifPref(){
+  try{
+    var v = localStorage.getItem(UPDATE_NOTIF_KEY);
+    if(v === "off") return "off";
+  }catch(e){}
+  return "on";
+}
+function _saveUpdateNotifPref(state){
+  try{ localStorage.setItem(UPDATE_NOTIF_KEY, state); }catch(e){}
+}
+function _getUpdateLaterTime(){
+  try{
+    var t = parseInt(localStorage.getItem(UPDATE_LATER_KEY), 10);
+    if(!isNaN(t) && t > 0) return t;
+  }catch(e){}
+  return 0;
+}
+function _setUpdateLaterTime(ts){
+  try{ localStorage.setItem(UPDATE_LATER_KEY, String(ts)); }catch(e){}
+}
+function _renderUpdateToggle(state){
+  var btn = $("update-notif-toggle");
+  if(!btn) return;
+  btn.disabled = false;
+  btn.textContent = state === "on" ? t("update_on") : t("update_off");
+  btn.dataset.state = state;
+  btn.className = "toggle-btn" + (state === "on" ? " on" : "");
+}
+function _renderUpdateStatus(){
+  var btn = $("update-status-btn");
+  if(!btn) return;
+  if(!_latestVer){
+    btn.className = "update-status-btn check";
+    btn.disabled = false;
+    btn.textContent = t("update_check");
+    btn.title = "Check for updates";
+    return;
+  }
+  var hasUpdate = _cmpVer(_parseVer(_latestVer), _parseVer(CUR_VER)) > 0;
+  if(hasUpdate){
+    btn.className = "update-status-btn update-avail";
+    btn.disabled = false;
+    btn.textContent = _latestVer;
+    btn.title = "Click to view release";
+  } else {
+    btn.className = "update-status-btn uptodate";
+    btn.disabled = true;
+    btn.textContent = "✓ " + t("update_uptodate") + " (v" + CUR_VER + ")";
+    btn.title = "";
+  }
+}
+// Parse semver "v3.2.0" or "3.2.0" → [3,2,0]
+function _parseVer(s){
+  var parts = (s||"").replace(/^v/i,"").split(".").map(Number);
+  return [parts[0]||0, parts[1]||0, parts[2]||0];
+}
+function _cmpVer(a,b){
+  for(var i=0;i<3;i++){
+    if(a[i]!==b[i]) return a[i]-b[i];
+  }
+  return 0;
+}
+function _checkUpdate(){
+  try{
+    fetch("https://api.github.com/repos/"+GH_REPO+"/releases/latest", {
+      cache: "no-cache"
+    }).then(function(rsp){
+      if(!rsp.ok){ _latestVer = null; _renderUpdateStatus(); _renderUpdateToggle(_loadUpdateNotifPref()); return; }
+      rsp.json().then(function(data){
+        if(!data || !data.tag_name){ _latestVer = null; _renderUpdateStatus(); _renderUpdateToggle(_loadUpdateNotifPref()); return; }
+        _latestVer = data.tag_name;
+        var tagVer = _parseVer(_latestVer);
+        var curVer = _parseVer(CUR_VER);
+        _renderUpdateStatus();
+        _renderUpdateToggle(_loadUpdateNotifPref());
+        var pref = _loadUpdateNotifPref();
+        if(pref === "on" && _cmpVer(tagVer, curVer) > 0){
+          var laterAt = _getUpdateLaterTime();
+          if(laterAt > 0 && Date.now() < laterAt) return;
+          _setUpdateLaterTime(0);
+          var detail = $("update-modal-detail");
+          if(detail) detail.textContent = data.tag_name + "  →  v" + CUR_VER;
+          $("update-overlay").classList.remove("hidden");
+        }
+      });
+    });
+  }catch(e){ _latestVer = null; _renderUpdateStatus(); _renderUpdateToggle(_loadUpdateNotifPref()); }
+}
+function _hideUpdatePopup(){
+  $("update-overlay").classList.add("hidden");
+}
+$("update-status-btn").addEventListener("click",function(){
+  if(this.disabled) return;
+  if(!_latestVer){ _checkUpdate(); return; }
+  cs.openURLInDefaultBrowser("https://github.com/"+GH_REPO+"/releases/latest");
+});
+$("update-notif-toggle").addEventListener("click",function(){
+  var cur = _loadUpdateNotifPref();
+  var next = cur === "on" ? "off" : "on";
+  _saveUpdateNotifPref(next);
+  _renderUpdateToggle(next);
+  if(next === "on") _checkUpdate();
+});
+$("update-modal-later").addEventListener("click",function(){
+  _setUpdateLaterTime(Date.now() + 24*60*60*1000);
+  _hideUpdatePopup();
+});
+$("update-modal-view").addEventListener("click",function(){
+  cs.openURLInDefaultBrowser("https://github.com/"+GH_REPO+"/releases/latest");
+  _hideUpdatePopup();
+});
+$("update-overlay").addEventListener("click",function(e){
+  if(e.target === $("update-overlay")) _hideUpdatePopup();
+});
+(function(){
+  var toggle = $("update-notif-toggle");
+  if(toggle) _renderUpdateToggle(_loadUpdateNotifPref());
+})();
+
 // Settings modal
 $("settings-btn").addEventListener("click",function(){
   renderTmpPath();
@@ -653,26 +800,35 @@ $("nav-first").addEventListener("click",function(){selectScene(0);});
 $("nav-prev").addEventListener("click",function(){if(S.activeIdx>0)selectScene(S.activeIdx-1);});
 $("nav-next").addEventListener("click",function(){if(S.activeIdx<S.scenes.length-1)selectScene(S.activeIdx+1);});
 $("nav-last").addEventListener("click",function(){if(S.scenes.length)selectScene(S.scenes.length-1);});
-$("go-btn").addEventListener("click",function(){
-  if(S.activeIdx<0)return;
-  if(seekTimer){clearTimeout(seekTimer);seekTimer=null;}
-  callHost("goToFrame",[S.scenes[S.activeIdx].start_sec],function(){
-    setStatus("→ "+S.scenes[S.activeIdx].start_tc,"ok");
+(function(){
+  var goBtn=$("go-btn");
+  if(goBtn) goBtn.addEventListener("click",function(){
+    if(S.activeIdx<0)return;
+    if(seekTimer){clearTimeout(seekTimer);seekTimer=null;}
+    callHost("goToFrame",[S.scenes[S.activeIdx].start_sec],function(){
+      setStatus("→ "+S.scenes[S.activeIdx].start_tc,"ok");
+    });
   });
-});
-$("ram-btn").addEventListener("click",function(){
-  if(S.activeIdx<0)return;
-  var sc=S.scenes[S.activeIdx];
-  callHost("goToScene",[sc.start_sec,sc.dur_sec],function(){
-    callHost("ramPreview",[],function(){});
+  var ramBtn=$("ram-btn");
+  if(ramBtn) ramBtn.addEventListener("click",function(){
+    if(S.activeIdx<0)return;
+    var sc=S.scenes[S.activeIdx];
+    callHost("goToScene",[sc.start_sec,sc.dur_sec],function(){
+      callHost("ramPreview",[],function(){});
+    });
   });
-});
+})();
 $("mark-btn").addEventListener("click",function(){toggleMark(S.activeIdx);});
 document.querySelectorAll(".col-btn").forEach(function(btn){
-  btn.addEventListener("click",function(){
+  btn.addEventListener("click",function(e){
+    e.stopPropagation();
+    var n=parseInt(btn.getAttribute("data-n")||btn.dataset.n||"3");
+    if(!n||n<1||n>10) return;
     document.querySelectorAll(".col-btn").forEach(function(b){b.classList.remove("active");});
-    btn.classList.add("active"); S.cols=parseInt(btn.dataset.n);
-    $("grid").style.gridTemplateColumns="repeat("+S.cols+",1fr)";
+    btn.classList.add("active");
+    S.cols=n;
+    var grid=$("grid");
+    if(grid) grid.style.gridTemplateColumns="repeat("+S.cols+",1fr)";
     refreshGrid();
   });
 });
@@ -878,16 +1034,17 @@ function applyAECompat(){
   var notice=$('ae-compat-notice');
   var verEl=$('ae-compat-ver');
   if(!btn||!notice) return;
-  // Default: tampilkan tombol jika belum dicek atau sedSupport true
-  if(!S_aeVer.checked||S_aeVer.sedSupport){
+  // Safety net: if major >= 22 (AE 2022+), always show detect button
+  // sedSupport should already be true, but guard against any parsing edge case
+  var forceSupport = (S_aeVer.num >= 22);
+  if(!S_aeVer.checked || S_aeVer.sedSupport || forceSupport){
     btn.style.display='';
     notice.style.display='none';
   } else {
-    // AE lama: sembunyikan tombol, tampilkan notice
+    // Old AE (< 2022): hide detect button, show notice
     btn.style.display='none';
     notice.style.display='';
-    if(verEl) verEl.textContent='Versi terdeteksi: After Effects '+(S_aeVer.name||S_aeVer.num);
-    // Terapkan teks i18n ke notice
+    if(verEl) verEl.textContent=t('ae_no_detect')+' (After Effects '+(S_aeVer.name||S_aeVer.num)+')';
     applyI18n();
   }
 }
@@ -896,9 +1053,35 @@ function _ready(){
   evalScript("getLayerName()",function(r){
     r=(r||"").replace(/^"|"$/g,""); if(r)$("layer-name").textContent=r;
   });
-  // Cek versi AE saat pertama load
   checkAEVersion();
   setStatus(t("status_idle"),"ok");
+  // ResizeObserver: collapse IN/OUT/DUR row saat panel < 50% lebar awal
+  _initTopbarCollapse();
+  setTimeout(_checkUpdate, 2000);
+}
+
+function _initTopbarCollapse(){
+  var row2 = $("topbar-row2");
+  var topbar = document.getElementById("topbar");
+  if(!row2||!topbar) return;
+  var baseW = 0;
+  try{
+    if(typeof ResizeObserver === "undefined") return;
+    var ro = new ResizeObserver(function(entries){
+      for(var i=0;i<entries.length;i++){
+        var w = entries[i].contentRect.width;
+        if(!baseW && w>0) baseW = w;
+        if(!baseW) return;
+        // Collapse saat panel <= 50% lebar awal
+        if(w <= baseW * 0.5){
+          row2.classList.add("collapsed");
+        } else {
+          row2.classList.remove("collapsed");
+        }
+      }
+    });
+    ro.observe(document.getElementById("main")||document.body);
+  }catch(e){}
 }
 
 })();
