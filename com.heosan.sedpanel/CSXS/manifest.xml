@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<ExtensionManifest
+    ExtensionBundleId="com.heosan.sedpanel"
+    ExtensionBundleVersion="2.0.0"
+    ExtensionBundleName="SED Panel"
+    Version="6.0">
+  <ExtensionList>
+    <Extension Id="com.heosan.sedpanel.panel" Version="2.0.0"/>
+  </ExtensionList>
+  <ExecutionEnvironment>
+    <HostList>
+      <!--
+        AEFT version mapping:
+          13.x = AE CC 2014    |  14.x = CC 2017   |  15.x = CC 2018
+          16.x = CC 2019       |  17.x = 2020       |  18.x = 2021
+          22.x = 2022          |  23.x = 2023       |  24.x = 2024
+          25.x = 2025          |  26.x = 2026
+        Scene Edit Detection native: AE 2022 (v22.0+)
+      -->
+      <Host Name="AEFT" Version="[13.0,99.9]"/>
+    </HostList>
+    <LocaleList>
+      <Locale Code="All"/>
+    </LocaleList>
+    <RequiredRuntimeList>
+      <!--
+        CSXS runtime mapping:
+          CSXS 6  = AE CC 2014-2018   |  CSXS 7  = CC 2019
+          CSXS 8  = AE 2020           |  CSXS 9  = AE 2021
+          CSXS 10 = AE 2022           |  CSXS 11 = AE 2023
+          CSXS 12 = AE 2024-2026
+      -->
+      <RequiredRuntime Name="CSXS" Version="6.0"/>
+    </RequiredRuntimeList>
+  </ExecutionEnvironment>
+  <DispatchInfoList>
+    <Extension Id="com.heosan.sedpanel.panel">
+      <DispatchInfo>
+        <Resources>
+          <MainPath>./index.html</MainPath>
+          <ScriptPath>./jsx/host.jsx</ScriptPath>
+        </Resources>
+        <Lifecycle>
+          <AutoVisible>true</AutoVisible>
+        </Lifecycle>
+        <UI>
+          <Type>Panel</Type>
+          <Menu>SED Panel</Menu>
+          <Geometry>
+            <Size>
+              <Height>720</Height>
+              <Width>960</Width>
+            </Size>
+            <MinSize>
+              <Height>400</Height>
+              <Width>280</Width>
+            </MinSize>
+          </Geometry>
+          <Icons/>
+        </UI>
+        <CEFCommandLine>
+          <Parameter>--allow-file-access-from-files</Parameter>
+          <Parameter>--disable-web-security</Parameter>
+        </CEFCommandLine>
+      </DispatchInfo>
+    </Extension>
+  </DispatchInfoList>
+</ExtensionManifest>

@@ -1,0 +1,413 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>SED Panel v2.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     ONBOARDING TUTORIAL OVERLAY (first-time only)
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<div id="onboard-overlay" class="hidden">
+  <div id="onboard-box">
+    <div id="onboard-header">
+      <svg width="28" height="28" viewBox="0 0 22 22" fill="none">
+        <rect x="1" y="1" width="20" height="20" rx="3" stroke="var(--accent)" stroke-width="1.5"/>
+        <line x1="7" y1="1" x2="7" y2="21" stroke="var(--accent)" stroke-width="1.5"/>
+        <line x1="14" y1="1" x2="14" y2="21" stroke="var(--accent)" stroke-width="1.5"/>
+        <rect x="3" y="8" width="2" height="6" rx="1" fill="var(--accent)"/>
+        <rect x="9" y="5" width="3" height="12" rx="1" fill="var(--accent)"/>
+        <rect x="16" y="9" width="2" height="4" rx="1" fill="var(--accent)"/>
+      </svg>
+      <span id="onboard-title">SED Panel v2.0</span>
+      <button id="onboard-skip" class="ob-skip">Skip</button>
+    </div>
+
+    <!-- Slides -->
+    <div id="onboard-slides">
+
+      <div class="ob-slide active" data-slide="0">
+        <div class="ob-slide-icon">ðŸŽ¬</div>
+        <div class="ob-slide-h" data-i18n="ob_h_welcome">Welcome to SED Panel</div>
+        <div class="ob-slide-p" data-i18n="ob_welcome_desc">Scene Edit Detection panel for Adobe After Effects.<br>Automatic scene cut detection, quick navigation, and easy scene export.</div>
+        <div class="ob-mini-panel">
+          <span class="ob-mini-label">Language</span>
+          <div class="ob-lang-row">
+            <button id="ob-lang-en" class="lang-btn active">English</button>
+            <button id="ob-lang-id" class="lang-btn">Indonesia</button>
+          </div>
+        </div>
+        <div class="ob-slide-p ob-hint" data-i18n="ob_hint">This guide appears once. Reopen anytime via About â†’ Tutorial.</div>
+      </div>
+
+      <div class="ob-slide" data-slide="1">
+        <div class="ob-slide-icon">â–¶</div>
+        <div class="ob-slide-h" data-i18n="ob_h_detect">DETECT SCENES</div>
+        <div class="ob-slide-p" data-i18n="ob_detect_desc">Select a video layer in the AE Timeline, then click <strong>DETECT SCENES</strong>.</div>
+        <div class="ob-tip">
+          <span class="ob-tip-icon">ðŸ’¡</span>
+          <span data-i18n="ob_detect_tip">After Effects will automatically create markers at every detected cut point on the layer.</span>
+        </div>
+      </div>
+
+      <div class="ob-slide" data-slide="2">
+        <div class="ob-slide-icon">ðŸ“Œ</div>
+        <div class="ob-slide-h" data-i18n="ob_h_read">Read Markers</div>
+        <div class="ob-slide-p" data-i18n="ob_read_desc">Already have markers from AE manual detection?<br>Click <strong>Read Markers</strong> to read existing markers.</div>
+        <div class="ob-tip">
+          <span class="ob-tip-icon">ðŸ’¡</span>
+          <span data-i18n="ob_read_tip">Layer â†’ Scene Edit Detection â†’ Create Layer Markers â†’ OK, then click Read Markers.</span>
+        </div>
+      </div>
+
+      <div class="ob-slide" data-slide="3">
+        <div class="ob-slide-icon">ðŸ–±ï¸</div>
+        <div class="ob-slide-h" data-i18n="ob_h_nav">Scene Navigation</div>
+        <div class="ob-slide-p" data-i18n="ob_nav_desc"><strong>Click</strong> a scene card â†’ select and move CTI to that scene.<br><strong>Ctrl+Click</strong> or <strong>Double-click</strong> â†’ mark for export.<br><strong>Thumbnails</strong> appear after clicking ðŸ–¼ Thumbs.</div>
+        <div class="ob-tip">
+          <span class="ob-tip-icon">ðŸ’¡</span>
+          <span data-i18n="ob_nav_tip">Use â® â—€ â–¶ â­ buttons at the top for quick navigation between scenes.</span>
+        </div>
+      </div>
+
+      <div class="ob-slide" data-slide="4">
+        <div class="ob-slide-icon">âœ‚</div>
+        <div class="ob-slide-h" data-i18n="ob_h_cut">Cut Layer</div>
+        <div class="ob-slide-p" data-i18n="ob_cut_desc"><strong>Cut All Cut Points</strong> â†’ split layer at all cut points (1 layer per scene).<br><strong>Cut Selected Only</strong> â†’ split only at marked scene cut points.</div>
+        <div class="ob-tip">
+          <span class="ob-tip-icon">âš </span>
+          <span data-i18n="ob_cut_tip">After splitting, layers cannot be automatically restored â€” but Ctrl+Z works.</span>
+        </div>
+      </div>
+
+      <div class="ob-slide" data-slide="5">
+        <div class="ob-slide-icon">ðŸ—‘</div>
+        <div class="ob-slide-h" data-i18n="ob_h_keep">Delete Except Selected</div>
+        <div class="ob-slide-p" data-i18n="ob_keep_desc">Mark scenes you want to <strong>keep</strong>, then click <strong>Delete All Except Selected</strong>.</div>
+        <div class="ob-tip">
+          <span class="ob-tip-icon">âš </span>
+          <span data-i18n="ob_keep_tip">This operation <strong>cannot be undone</strong>! Make sure marked scenes are correct before executing.</span>
+        </div>
+      </div>
+
+      <div class="ob-slide" data-slide="6">
+        <div class="ob-slide-icon">ðŸŽ¬</div>
+        <div class="ob-slide-h" data-i18n="ob_h_export">Export to Render Queue</div>
+        <div class="ob-slide-p" data-i18n="ob_export_desc">Mark scenes to render, then click <strong>Export â†’ Render Queue</strong>.<br>Each scene becomes a separate composition in AE Render Queue.</div>
+        <div class="ob-tip">
+          <span class="ob-tip-icon">ðŸ’¡</span>
+          <span data-i18n="ob_export_tip">After export, open Window â†’ Render Queue, set output path, then Render All.</span>
+        </div>
+      </div>
+
+      <div class="ob-slide" data-slide="7">
+        <div class="ob-slide-icon">ðŸ–¼</div>
+        <div class="ob-slide-h" data-i18n="ob_h_thumb">Thumbnail Preview</div>
+        <div class="ob-slide-p" data-i18n="ob_thumb_desc">Click <strong>ðŸ–¼ Thumbs</strong> to generate thumbnails for each scene.<br>If it fails, open <strong>Settings â†’ Temp Folder</strong> and choose a writable folder.</div>
+        <div class="ob-tip">
+          <span class="ob-tip-icon">ðŸ’¡</span>
+          <span data-i18n="ob_thumb_tip">Thumbnails are rendered by AE to the temp folder, then automatically cleaned after reading.</span>
+        </div>
+      </div>
+
+      <div class="ob-slide" data-slide="8">
+        <div class="ob-slide-icon">âœ…</div>
+        <div class="ob-slide-h" data-i18n="ob_h_ready">Ready to Use!</div>
+        <div class="ob-slide-p" data-i18n="ob_ready_desc">All main features explained.<br>Open <strong>About â†’ Tutorial</strong> anytime to reopen this guide.</div>
+        <div class="ob-tip">
+          <span class="ob-tip-icon">ðŸ’¡</span>
+          <span data-i18n="ob_ready_tip">Set language and temp folder in Settings. Custom temp folder helps with thumbnails if AE cannot write to the extension folder.</span>
+        </div>
+        <div class="ob-mini-panel">
+          <span class="ob-mini-label">Temp Folder</span>
+          <div class="temp-row">
+            <span id="ob-temp-path" class="temp-path">Default</span>
+            <button id="ob-temp-pick" class="mini-btn">Pilih Folder</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /slides -->
+
+    <!-- Dots + nav -->
+    <div id="onboard-dots">
+      <span class="ob-dot active" data-to="0"></span>
+      <span class="ob-dot" data-to="1"></span>
+      <span class="ob-dot" data-to="2"></span>
+      <span class="ob-dot" data-to="3"></span>
+      <span class="ob-dot" data-to="4"></span>
+      <span class="ob-dot" data-to="5"></span>
+      <span class="ob-dot" data-to="6"></span>
+      <span class="ob-dot" data-to="7"></span>
+      <span class="ob-dot" data-to="8"></span>
+    </div>
+    <div id="onboard-nav">
+      <button id="ob-prev" class="ob-btn-nav" disabled data-i18n="ob_back">â† Back</button>
+      <button id="ob-next" class="ob-btn-nav ob-btn-primary" data-i18n="ob_next">Next â†’</button>
+    </div>
+  </div>
+</div>
+
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     MAIN APP
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<div id="app">
+
+  <!-- â•â•â• SIDEBAR â•â•â• -->
+  <div id="sidebar">
+    <div id="logo">
+      <div id="logo-icon">
+        <svg width="24" height="24" viewBox="0 0 22 22" fill="none">
+          <rect x="1" y="1" width="20" height="20" rx="3" stroke="var(--accent)" stroke-width="1.5"/>
+          <line x1="7" y1="1" x2="7" y2="21" stroke="var(--accent)" stroke-width="1.5"/>
+          <line x1="14" y1="1" x2="14" y2="21" stroke="var(--accent)" stroke-width="1.5"/>
+          <rect x="3" y="8" width="2" height="6" rx="1" fill="var(--accent)"/>
+          <rect x="9" y="5" width="3" height="12" rx="1" fill="var(--accent)"/>
+          <rect x="16" y="9" width="2" height="4" rx="1" fill="var(--accent)"/>
+        </svg>
+      </div>
+      <div id="logo-text">
+        <span id="logo-title">SED PANEL</span>
+        <span id="logo-ver">v2.0</span>
+      </div>
+      <button id="settings-btn" class="icon-btn" title="Settings" style="margin-left:auto">âš™</button>
+      <button id="about-btn" class="icon-btn" title="About">?</button>
+    </div>
+
+    <div id="status-wrap">
+      <div id="status-dot"></div>
+      <div id="status" data-i18n="status_idle">Select a video layer â†’ Detect</div>
+    </div>
+
+    <div class="field-row">
+      <span class="field-label" data-i18n="layer">LAYER</span>
+      <div class="field-value-row">
+        <span id="layer-name" class="field-value">â€”</span>
+        <button id="rf-btn" class="icon-btn" title="Refresh layer">â†»</button>
+      </div>
+    </div>
+
+    <!-- detect-wrap: shows either btn or AE-upgrade notice depending on AE version -->
+    <div id="detect-wrap">
+      <button id="detect-btn" class="btn-detect">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" style="flex-shrink:0">
+          <polygon points="2,1 11,6 2,11"/>
+        </svg>
+        <span data-i18n="detect">DETECT SCENES</span>
+      </button>
+      <!-- Shown on AE < 2022: detect not available -->
+      <div id="ae-compat-notice" style="display:none">
+        <div class="ae-compat-icon">âš </div>
+        <div class="ae-compat-text" data-i18n="ae_no_detect">Scene Edit Detection tidak tersedia di versi AE ini.</div>
+        <div class="ae-compat-sub" data-i18n="ae_upgrade_hint">Update AE ke versi 2022 atau lebih baru, atau tunggu patch selanjutnya.</div>
+        <div id="ae-compat-ver" class="ae-compat-ver"></div>
+      </div>
+    </div>
+    <button id="read-btn" class="btn-read" data-i18n="read_marker">Read Markers</button>
+    <div class="btn-row btn-row-thumb">
+      <button id="thumb-btn" class="btn-thumb-side" data-i18n="gen_thumbs">ðŸ–¼ Thumbs</button>
+      <button id="clean-btn" class="btn-clean-side" data-i18n="clean_tmp">ðŸ—‘ Tmp</button>
+    </div>
+
+    <div id="stats-row">
+      <div class="stat-box">
+        <span class="stat-val" id="count-lbl">â€”</span>
+        <span class="stat-key" data-i18n="scenes">SCENES</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-val accent-ok" id="sel-count-lbl">0</span>
+        <span class="stat-key" data-i18n="marked">MARKED</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-val accent-warn" id="thumb-count-lbl">0</span>
+        <span class="stat-key">THUMBS</span>
+      </div>
+    </div>
+
+    <div id="scene-list-wrap">
+      <table id="scene-list">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th data-i18n="th_in">IN</th>
+            <th data-i18n="th_dur">DUR</th>
+            <th>âœ”</th>
+          </tr>
+        </thead>
+        <tbody id="scene-tbody">
+          <tr><td colspan="4" class="list-empty" data-i18n="no_scenes">No scenes yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="btn-row">
+      <button id="sel-all-btn"  class="btn-sm" data-i18n="all">All</button>
+      <button id="sel-none-btn" class="btn-sm" data-i18n="none">None</button>
+      <button id="clr-btn"      class="btn-sm btn-sm-danger" data-i18n="clear_marker">âœ• Markers</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div id="actions">
+      <button id="split-all-btn" class="action-btn">
+        <span class="action-icon">âœ‚</span><span data-i18n="split_all">Cut All Cut Points</span>
+      </button>
+      <button id="split-sel-btn" class="action-btn">
+        <span class="action-icon">âœ‚</span><span data-i18n="split_sel">Cut Selected Only</span>
+      </button>
+      <button id="keep-sel-btn" class="action-btn action-btn-warn">
+        <span class="action-icon">ðŸ—‘</span><span data-i18n="keep_sel">Delete All Except Selected</span>
+      </button>
+      <button id="comp-mrkr-btn" class="action-btn">
+        <span class="action-icon">â—ˆ</span><span data-i18n="comp_markers">Add Comp Markers</span>
+      </button>
+      <button id="export-btn" class="action-btn action-btn-accent">
+        <span class="action-icon">ðŸŽ¬</span><span data-i18n="export_rq">Export â†’ Render Queue</span>
+      </button>
+    </div>
+
+    <div id="credit">Â© 2026 Heosan Â· @heosan</div>
+  </div>
+
+  <!-- â•â•â• MAIN â•â•â• -->
+  <div id="main">
+    <div id="topbar">
+      <div id="scene-info">
+        <div class="info-chip" id="chip-scene">
+          <span class="chip-label" data-i18n="scene">SCENE</span>
+          <span class="chip-val large" id="info-scene">â€”</span>
+        </div>
+        <div class="info-divider"></div>
+        <div class="info-chip inout">
+          <span class="chip-label">IN</span><span class="chip-val mono" id="info-in">â€”</span>
+          <span class="chip-label">OUT</span><span class="chip-val mono" id="info-out">â€”</span>
+          <span class="chip-label" data-i18n="dur">DUR</span><span class="chip-val mono" id="info-dur">â€”</span>
+        </div>
+        <button id="mark-btn" class="mark-toggle" data-i18n="mark">â—‹ Mark</button>
+      </div>
+      <div id="transport">
+        <div class="t-group">
+          <button id="nav-first" class="t-btn">â®</button>
+          <button id="nav-prev"  class="t-btn">â—€</button>
+          <span id="slide-counter">â€” / â€”</span>
+          <button id="nav-next"  class="t-btn">â–¶</button>
+          <button id="nav-last"  class="t-btn">â­</button>
+        </div>
+        <div class="t-sep"></div>
+        <button id="go-btn"   class="t-action" data-i18n="go_frame">Go to Frame</button>
+        <button id="ram-btn"  class="t-action t-hi">âš¡ RAM</button>
+
+      </div>
+    </div>
+
+    <div id="grid-header">
+      <span id="grid-title">SCENES</span>
+      <span id="thumb-progress" class="thumb-progress hidden"></span>
+      <span id="grid-hint" data-i18n="grid_hint">Hover=playback Â· Ctrl+click=mark Â· Dbl=mark</span>
+      <div id="col-switcher">
+        <span class="col-label" data-i18n="col">Col</span>
+        <button data-n="2" class="col-btn">2</button>
+        <button data-n="3" class="col-btn active">3</button>
+        <button data-n="4" class="col-btn">4</button>
+        <button data-n="5" class="col-btn">5</button>
+      </div>
+    </div>
+
+    <div id="grid-scroll">
+      <div id="grid">
+        <div class="grid-empty" data-i18n="no_scenes">No scenes yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     ABOUT MODAL
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<div id="about-overlay" class="overlay hidden">
+  <div id="about-modal">
+    <button id="about-close-x" class="about-close-x">Ã—</button>
+
+    <div id="about-logo">
+      <svg width="52" height="52" viewBox="0 0 22 22" fill="none">
+        <rect x="1" y="1" width="20" height="20" rx="3" stroke="var(--accent)" stroke-width="1.5"/>
+        <line x1="7" y1="1" x2="7" y2="21" stroke="var(--accent)" stroke-width="1.5"/>
+        <line x1="14" y1="1" x2="14" y2="21" stroke="var(--accent)" stroke-width="1.5"/>
+        <rect x="3" y="8" width="2" height="6" rx="1" fill="var(--accent)"/>
+        <rect x="9" y="5" width="3" height="12" rx="1" fill="var(--accent)"/>
+        <rect x="16" y="9" width="2" height="4" rx="1" fill="var(--accent)"/>
+      </svg>
+    </div>
+    <div id="about-name">SED PANEL</div>
+    <div id="about-version">v2.0.0 Â· Scene Edit Detection</div>
+    <div id="about-desc" data-i18n="about_desc">Scene Edit Detection Panel for Adobe After Effects.</div>
+
+    <!-- Links -->
+    <div id="about-links">
+      <a href="#" class="about-link" id="link-tiktok"><span class="link-icon">ðŸ“±</span>TikTok @heosan</a>
+      <a href="#" class="about-link" id="link-ig"><span class="link-icon">ðŸ“·</span>Instagram @_heosan</a>
+      <a href="#" class="about-link" id="link-web"><span class="link-icon">ðŸŒ</span>heosanweb.carrd.co</a>
+    </div>
+
+    <!-- Tutorial button -->
+    <button id="open-tutorial-btn" class="about-section-btn about-section-tutorial">
+      ðŸ“– <span data-i18n="tutorial_btn">Tutorial â€” Panduan Penggunaan</span>
+    </button>
+
+    <!-- System section -->
+    <div class="about-section-title" data-i18n="system_title">SISTEM</div>
+    <div id="system-btns">
+      <button id="diag-btn"        class="about-sys-btn">ðŸ” <span data-i18n="diag_btn">Diagnose Render</span></button>
+    </div>
+
+    <div id="about-credits">
+      <div class="credit-row">
+        <span class="credit-role">Created by</span>
+        <span class="credit-name">Heosan</span>
+      </div>
+
+    </div>
+    <div id="about-copy">Â© 2026 Heosan</div>
+    <button id="about-close" data-i18n="close">Close</button>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="settings-overlay" class="overlay hidden">
+  <div id="settings-modal">
+    <button id="settings-close-x" class="about-close-x">Ã—</button>
+
+    <div class="settings-title" data-i18n="settings_title">Settings</div>
+    <div class="settings-desc" data-i18n="settings_desc">Panel preferences and thumbnail temp folder.</div>
+
+    <div class="settings-section">
+      <div class="settings-section-title" data-i18n="language">Language:</div>
+      <div id="lang-switcher">
+        <button id="lang-en" class="lang-btn active">English</button>
+        <button id="lang-id" class="lang-btn">Indonesia</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title" data-i18n="temp_folder">Temp Folder</div>
+      <div class="settings-note" data-i18n="temp_folder_desc">Used for thumbnail render files. Choose a writable folder if AE cannot write to the extension folder.</div>
+      <div class="temp-picker">
+        <span id="temp-path" class="temp-path">Default</span>
+        <button id="temp-pick-btn" class="mini-btn" data-i18n="choose_folder">Choose Folder</button>
+      </div>
+      <button id="temp-clear-btn" class="about-sys-btn" data-i18n="use_default_temp">Use Default Temp Folder</button>
+    </div>
+
+    <button id="settings-close" data-i18n="close">Close</button>
+  </div>
+</div>
+
+<script src="js/CSInterface.js"></script>
+<script src="js/main.js?v=6.1.0"></script>
+</body>
+</html>
