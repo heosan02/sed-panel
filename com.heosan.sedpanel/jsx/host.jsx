@@ -1,5 +1,5 @@
 // ============================================================
-// host.jsx  -  SED Panel CEP  v2.2
+// host.jsx  -  SED Panel CEP  v3.0  (Multi-Layer)
 
 // ══════════════════════════════════════════════════════════
 // AE VERSION DETECTION — called on panel startup
@@ -429,6 +429,13 @@ function getDiagnostics(customPath){
 // ── readMarkersFromLayer ──────────────────────────────────
 function readMarkersFromLayer(layer,comp){
     var fps=comp.frameRate,dur=comp.duration,cuts=[0];
+    // Find layer index in comp
+    var layerIdx = 1;
+    try{
+        for(var li=1; li<=comp.numLayers; li++){
+            if(comp.layer(li) === layer){ layerIdx = li; break; }
+        }
+    }catch(e){}
     try{
         var mkr=layer.property("Marker");
         if(mkr&&mkr.numKeys>0){
@@ -450,7 +457,8 @@ function readMarkersFromLayer(layer,comp){
         var s=cuts[i],e=cuts[i+1];
         scenes.push({index:i+1,start_sec:s,end_sec:e,dur_sec:e-s,
             start_tc:_fmtTC(s,fps),end_tc:_fmtTC(e,fps),
-            dur_tc:_fmtTC(e-s,fps),dur_str:_fmtDur(e-s),fps:fps});
+            dur_tc:_fmtTC(e-s,fps),dur_str:_fmtDur(e-s),fps:fps,
+            layerIndex: layerIdx, layerName: layer.name});
     }
     return JSON.stringify({ok:true,scenes:scenes,layerName:layer.name,fps:fps});
 }
@@ -527,15 +535,119 @@ function runDetect(sensitivity){
                +(verMsg?"\n\n"+verMsg:"")});
     }
 
-    return readMarkersFromLayer(layer,comp);
+    return readMarkers();
+}
+
+function _isValidMarkerLayer(l){
+    try{
+        if(l.adjustmentLayer) return false;
+        try{ if(l.nullLayer) return false; }catch(e){}
+        if(l instanceof TextLayer || l instanceof ShapeLayer) return false;
+        var src = l.source;
+        if(!src) return false;
+        if(src instanceof FootageItem){
+            try{ if(src.mainSource instanceof SolidSource) return false; }catch(e){}
+            if(!src.file || !src.hasVideo) return false;
+        }else if(!(src instanceof CompItem)){
+            return false;
+        }
+        return true;
+    }catch(e){ return false; }
 }
 
 function readMarkers(){
     var comp=app.project.activeItem;
     if(!comp||!(comp instanceof CompItem)) return JSON.stringify({ok:false,msg:"Activate a composition first."});
-    var layer=_getActiveLayer(comp);
-    if(!layer) return JSON.stringify({ok:false,msg:"No footage layer found."});
-    return readMarkersFromLayer(layer,comp);
+
+    // Collect markers from ALL valid marker layers in the comp.
+    // Single-pass scan (no Pass 1/Pass 2 split) ensures CONSISTENT results
+    // whether called from the panel or from within mergeScenes/keepOnlyScenes.
+    var allLayerMarkers = [];
+    var fps = comp.frameRate;
+    var dur = comp.duration;
+    var eps = 0.5 / fps;
+
+    for(var li = 1; li <= comp.numLayers; li++){
+        try{
+            var l = comp.layer(li);
+            if(!(l instanceof AVLayer)) continue;
+            if(!_isValidMarkerLayer(l)) continue;
+            var mkr = l.property("Marker");
+            if(!mkr || mkr.numKeys === 0) continue;
+            for(var k = 1; k <= mkr.numKeys; k++){
+                var t = mkr.keyTime(k);
+                if(t > 0.001 && t < dur - 0.001){
+                    allLayerMarkers.push({time: t, layerIndex: li, layerName: l.name});
+                }
+            }
+        }catch(e){}
+    }
+
+    if(allLayerMarkers.length > 0) return _buildScenesFromMarkers(allLayerMarkers, dur, fps);
+
+    // Fall back to single-layer active layer search (original behavior)
+    var singleLayer = _getActiveLayer(comp);
+    if(singleLayer) return readMarkersFromLayer(singleLayer, comp);
+    return JSON.stringify({ok:false,msg:"No layers with markers found."});
+}
+
+function _buildScenesFromMarkers(markers, dur, fps){
+    if(markers.length === 0) return JSON.stringify({ok:false,msg:"No markers found."});
+    var eps = 0.5 / fps;
+    markers.sort(function(a,b){ return a.time - b.time; });
+    var uniqueMarkers = [];
+    for(var mi = 0; mi < markers.length; mi++){
+        if(uniqueMarkers.length === 0 ||
+           Math.abs(markers[mi].time - uniqueMarkers[uniqueMarkers.length-1].time) > eps){
+            uniqueMarkers.push(markers[mi]);
+        }
+    }
+    var scenes = [];
+    var prevCut = 0;
+    for(var si = 0; si < uniqueMarkers.length; si++){
+        var ct = uniqueMarkers[si].time;
+        scenes.push({
+            index: si + 1,
+            start_sec: prevCut,
+            end_sec: ct,
+            dur_sec: ct - prevCut,
+            start_tc: _fmtTC(prevCut, fps),
+            end_tc: _fmtTC(ct, fps),
+            dur_tc: _fmtTC(ct - prevCut, fps),
+            dur_str: _fmtDur(ct - prevCut),
+            fps: fps,
+            layerIndex: uniqueMarkers[si].layerIndex,
+            layerName: uniqueMarkers[si].layerName
+        });
+        prevCut = ct;
+    }
+    scenes.push({
+        index: scenes.length + 1,
+        start_sec: prevCut,
+        end_sec: dur,
+        dur_sec: dur - prevCut,
+        start_tc: _fmtTC(prevCut, fps),
+        end_tc: _fmtTC(dur, fps),
+        dur_tc: _fmtTC(dur - prevCut, fps),
+        dur_str: _fmtDur(dur - prevCut),
+        fps: fps,
+        layerIndex: scenes.length > 0 ? scenes[scenes.length-1].layerIndex : 1,
+        layerName: scenes.length > 0 ? scenes[scenes.length-1].layerName : ""
+    });
+    var layerNameSet = {};
+    for(var ni = 0; ni < uniqueMarkers.length; ni++){
+        layerNameSet[uniqueMarkers[ni].layerName] = true;
+    }
+    var layerNames = [];
+    for(var ln in layerNameSet){ if(layerNameSet.hasOwnProperty(ln)) layerNames.push(ln); }
+    var displayName = layerNames.length === 1 ? layerNames[0] : (layerNames.length + " layers");
+    return JSON.stringify({
+        ok: true,
+        scenes: scenes,
+        layerName: displayName,
+        fps: fps,
+        multiLayer: uniqueMarkers.length > 1
+    });
 }
 
 function getLayerName(){
@@ -672,39 +784,75 @@ function captureSceneFramesBatch(batchJson, customPath){
 function keepOnlyScenes(scenesJson,allScenesJson){
     var comp=app.project.activeItem;
     if(!comp||!(comp instanceof CompItem)) return JSON.stringify({ok:false,msg:"Invalid composition."});
-    var layer=_getActiveLayer(comp);
-    if(!layer) return JSON.stringify({ok:false,msg:"No layer found."});
     var keepS,allS;
     try{ keepS=JSON.parse(scenesJson); allS=JSON.parse(allScenesJson); }
     catch(e){ return JSON.stringify({ok:false,msg:"Parse error"}); }
     if(!keepS||!keepS.length) return JSON.stringify({ok:false,msg:"No scenes to keep."});
     
+    var fps = comp.frameRate;
     app.beginUndoGroup("SED: Keep Only");
     try{
-        // v6.0 OPT: Remove ALL markers from original layer FIRST (1 pass only)
-        // Then duplicate() already yields clean layers — no per-duplicate marker cleanup needed.
-        // Old approach: N_keep × N_markers iterations (e.g. 21 keeps × 180 markers = 3780 ops)
-        // New approach: 1 × N_markers + N_keep × 0 = 180 ops total → much faster
-        var origMarkers = layer.property("Marker");
-        if(origMarkers){
-            while(origMarkers.numKeys > 0){
-                origMarkers.removeKey(1);
-            }
+        // Group kept scenes by layerIndex
+        var layerGroups = {};
+        var hasLayerIndex = false;
+        for(var kg = 0; kg < keepS.length; kg++){
+            var ks = keepS[kg];
+            var li = ks.layerIndex || 0;
+            if(!layerGroups[li]) layerGroups[li] = [];
+            layerGroups[li].push(ks);
+            if(li > 0) hasLayerIndex = true;
         }
 
-        // Iterate REVERSE: scene[0] duplicated last → sits at top of AE stack (layer index 1)
-        for(var k=keepS.length-1; k>=0; k--){
-            var sc = keepS[k];
-            var dup = layer.duplicate();
-            var st = sc.start_sec;
-            var ed = sc.start_sec + sc.dur_sec;
-            if(st < dup.startTime) st = dup.startTime;
-            dup.inPoint  = st;
-            dup.outPoint = ed;
-            dup.name = dup.source ? dup.source.name : dup.name;
-            // No marker cleanup needed — original already stripped above
+        // Collect keys manually (ExtendScript has no Object.keys)
+        var layerKeys = [];
+        for(var lk in layerGroups){ if(layerGroups.hasOwnProperty(lk)) layerKeys.push(lk); }
+
+        // Process layers from highest index to lowest so removals don't shift indices
+        layerKeys.sort(function(a,b){ return parseInt(b) - parseInt(a); });
+
+        for(var lg = 0; lg < layerKeys.length; lg++){
+            var lidx = parseInt(layerKeys[lg]);
+            var layer = null;
+            var layerScenes = layerGroups[lidx];
+
+            if(lidx > 0 && lidx <= comp.numLayers){
+                // Known layerIndex: find the actual layer
+                layer = comp.layer(lidx);
+                if(!layer || !layer.property("Marker")) continue;
+            } else if(lidx === 0){
+                // Backward compat: scenes without layerIndex
+                layer = _getActiveLayer(comp);
+                if(!layer) continue;
+            }
+
+            // Remove ALL markers from this layer first
+            var origMarkers = layer.property("Marker");
+            if(origMarkers){
+                while(origMarkers.numKeys > 0){
+                    origMarkers.removeKey(1);
+                }
+            }
+
+            // Duplicate for each kept scene (reverse order = top to bottom)
+            for(var k2 = layerScenes.length - 1; k2 >= 0; k2--){
+                var sc = layerScenes[k2];
+                var dup = layer.duplicate();
+                var st = sc.start_sec;
+                var ed = sc.start_sec + sc.dur_sec;
+                if(st < dup.startTime) st = dup.startTime;
+                dup.inPoint  = st;
+                dup.outPoint = ed;
+                dup.name = dup.source ? dup.source.name : dup.name;
+                try{
+                    var dupMarkers = dup.property("Marker");
+                    if(dupMarkers){
+                        var mv = new MarkerValue("" + sc.index);
+                        dupMarkers.setValueAtTime(st, mv);
+                    }
+                }catch(em){}
+            }
+            layer.remove();
         }
-        layer.remove();
     }catch(e){ app.endUndoGroup(); return JSON.stringify({ok:false,msg:"Failed: "+e.toString()}); }
     app.endUndoGroup();
     return JSON.stringify({ok:true,kept:keepS.length,deleted:allS.length-keepS.length});
@@ -718,7 +866,7 @@ function addCompMarkers(scenesJson){
     app.beginUndoGroup("SED: Comp Markers");
     try{
         for(var i=0;i<scenes.length;i++){
-            var mv=new MarkerValue("Scene "+scenes[i].index);
+            var mv=new MarkerValue(""+scenes[i].index);
             mv.duration=scenes[i].dur_sec;
             markers.setValueAtTime(scenes[i].start_sec,mv);
         }
@@ -756,8 +904,6 @@ function clearLayerMarkers(){
 function mergeScenes(groupsJson){
     var comp=app.project.activeItem;
     if(!comp||!(comp instanceof CompItem)) return JSON.stringify({ok:false,msg:"Invalid composition."});
-    var layer=_getActiveLayer(comp);
-    if(!layer) return JSON.stringify({ok:false,msg:"No layer found."});
 
     var groups;
     try{ groups = JSON.parse(groupsJson); }
@@ -766,38 +912,231 @@ function mergeScenes(groupsJson){
 
     var fps = comp.frameRate;
     var dur = comp.duration;
-    var eps = 1/fps*0.5; // half-frame tolerance for float time comparisons
+    var eps = 1/fps*0.5; // half-frame tolerance
 
-    // Collect every INTERNAL boundary time that must be removed across
-    // all groups. A group of N scenes has (N-1) internal boundaries —
-    // the start_sec of every scene in the group EXCEPT the first one.
-    var removeTimes = [];
+    // v9.0: Group the groups by layerIndex so each layer is processed independently
+    var groupsByLayer = {};
     var mergedCount = 0;
     for(var g=0; g<groups.length; g++){
         var grp = groups[g];
-        if(!grp || grp.length < 2) continue; // nothing to merge in this group
-        for(var s=1; s<grp.length; s++){
-            removeTimes.push(grp[s].start_sec);
-        }
+        if(!grp || grp.length < 2) continue;
+        var li = grp[0].layerIndex || 0;
+        if(!groupsByLayer[li]) groupsByLayer[li] = [];
+        groupsByLayer[li].push(grp);
         mergedCount++;
     }
 
     if(mergedCount === 0)
         return JSON.stringify({ok:false,msg:"No valid groups (need 2+ adjacent scenes each)."});
 
+    // ── Process each layer's groups independently ──
+    var totalRemoved = 0;
+    var allRemoveTimes = [];
+
+    app.beginUndoGroup("SED: Merge Scenes");
+    try{
+        for(var liKey in groupsByLayer){
+            if(!groupsByLayer.hasOwnProperty(liKey)) continue;
+            var layerGroups = groupsByLayer[liKey];
+            var layerIdx = parseInt(liKey);
+            var markerLayer = null;
+
+            // Find the actual layer for this group
+            if(layerIdx > 0 && layerIdx <= comp.numLayers){
+                var tl = comp.layer(layerIdx);
+                if(tl && tl instanceof AVLayer && tl.property("Marker")){
+                    markerLayer = tl;
+                }
+            }
+            if(!markerLayer) markerLayer = _getActiveLayer(comp);
+            if(!markerLayer || !markerLayer.property("Marker")) continue;
+
+            // Collect removeTimes for this layer only
+            var layerRemoveTimes = [];
+            for(var lg=0; lg<layerGroups.length; lg++){
+                var grp2 = layerGroups[lg];
+                for(var s2=1; s2<grp2.length; s2++){
+                    var rt = grp2[s2].start_sec;
+                    layerRemoveTimes.push(rt);
+                    allRemoveTimes.push(rt);
+                }
+            }
+
+            // Remove internal boundary markers from this layer
+            var mkr2 = markerLayer.property("Marker");
+            if(mkr2 && mkr2.numKeys > 0){
+                for(var k2 = mkr2.numKeys; k2 >= 1; k2--){
+                    var kt2 = mkr2.keyTime(k2);
+                    for(var r2 = 0; r2 < layerRemoveTimes.length; r2++){
+                        if(Math.abs(kt2 - layerRemoveTimes[r2]) <= eps){
+                            mkr2.removeKey(k2);
+                            totalRemoved++;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }catch(e){
+        app.endUndoGroup();
+        return JSON.stringify({ok:false,msg:"Merge failed: "+e.toString()});
+    }
+    app.endUndoGroup();
+
+    if(totalRemoved === 0){
+        // Per-layer search failed — try searching ALL layers for matching markers.
+        // This handles cases where layerIndex from _buildScenesFromMarkers doesn't
+        // match the actual marker layer (multi-layer dedup, layer reordering, etc.)
+        _writeLog("diag","[MERGE] per-layer search found 0 markers, trying all layers. removeTimes count="+allRemoveTimes.length);
+        if(allRemoveTimes.length === 0){
+            return JSON.stringify({ok:false,msg:"No markers to remove."});
+        }
+        app.beginUndoGroup("SED: Merge Scenes (all layers)");
+        try{
+            for(var li6 = 1; li6 <= comp.numLayers; li6++){
+                var l6 = comp.layer(li6);
+                if(!l6 || !(l6 instanceof AVLayer)) continue;
+                if(!l6.property("Marker")) continue;
+                var mkr6 = l6.property("Marker");
+                if(!mkr6 || mkr6.numKeys === 0) continue;
+                var layerName6 = l6.name;
+                for(var k6 = mkr6.numKeys; k6 >= 1; k6--){
+                    var kt6 = mkr6.keyTime(k6);
+                    for(var r6 = 0; r6 < allRemoveTimes.length; r6++){
+                        if(Math.abs(kt6 - allRemoveTimes[r6]) <= eps){
+                            _writeLog("diag","[MERGE] removing marker at t="+kt6+" from layer "+(li6)+" ("+layerName6+")");
+                            mkr6.removeKey(k6);
+                            totalRemoved++;
+                            break;
+                        }
+                    }
+                }
+            }
+        }catch(e){
+            app.endUndoGroup();
+            return JSON.stringify({ok:false,msg:"Merge (all-layers) failed: "+e.toString()});
+        }
+        app.endUndoGroup();
+        _writeLog("diag","[MERGE] all-layers search totalRemoved="+totalRemoved);
+    }
+
+    if(totalRemoved === 0){
+        return JSON.stringify({ok:false,
+            msg:"No matching markers found to merge.\nScene data may be out of date — click [Read Markers] and try again."});
+    }
+
+    // ── Merge split layers (if any) ──
+    // If the user previously used "Cut All Cut Points", the footage was
+    // split into one layer per scene. After removing markers, we also need
+    // to recombine those layers: extend the first layer's outPoint and
+    // remove the intermediate layers.
+    _writeLog("diag","[MERGE] attempting layer merge for "+mergedCount+" group(s)");
+    var layersRemoved = 0;
+    app.beginUndoGroup("SED: Merge Layers");
+    try{
+        for(var liKey in groupsByLayer){
+            if(!groupsByLayer.hasOwnProperty(liKey)) continue;
+            var layerGroups = groupsByLayer[liKey];
+            for(var lg=0; lg<layerGroups.length; lg++){
+                var grp3 = layerGroups[lg];
+                if(grp3.length < 2) continue;
+                var firstSc = grp3[0];
+                var lastSc  = grp3[grp3.length - 1];
+
+                // Find the first and last layer by matching inPoint/outPoint
+                var firstLayer = null;
+                var lastLayer  = null;
+                for(var li7 = 1; li7 <= comp.numLayers; li7++){
+                    try{
+                        var l7 = comp.layer(li7);
+                        if(!l7 || !(l7 instanceof AVLayer)) continue;
+                        if(Math.abs(l7.inPoint - firstSc.start_sec) <= eps &&
+                           Math.abs(l7.outPoint - firstSc.end_sec) <= eps){
+                            firstLayer = l7;
+                        }
+                        if(Math.abs(l7.inPoint - lastSc.start_sec) <= eps &&
+                           Math.abs(l7.outPoint - lastSc.end_sec) <= eps){
+                            lastLayer = l7;
+                        }
+                    }catch(e){}
+                }
+
+                if(!firstLayer || !lastLayer){
+                    _writeLog("diag","[MERGE] layer match failed for group: first="+(firstLayer?firstLayer.name:"null")+" last="+(lastLayer?lastLayer.name:"null"));
+                    continue;
+                }
+
+                // Save original outPoint before extending
+                var firstOrigOut = firstLayer.outPoint;
+
+                // ── Transfer markers from lastLayer to firstLayer ──
+                // Before removing lastLayer, copy its markers that are at or
+                // after the merged range's end boundary to the extended firstLayer.
+                try{
+                    var lastMkr = lastLayer.property("Marker");
+                    var firstMkr = firstLayer.property("Marker");
+                    if(lastMkr && firstMkr && lastMkr.numKeys > 0){
+                        for(var km = 1; km <= lastMkr.numKeys; km++){
+                            var kmt = lastMkr.keyTime(km);
+                            if(kmt > firstOrigOut - eps){
+                                var kmv = lastMkr.keyValue(km);
+                                firstMkr.setValueAtTime(kmt, kmv);
+                            }
+                        }
+                    }
+                }catch(e){}
+
+                // Extend firstLayer's outPoint to cover the merged range
+                firstLayer.outPoint = lastLayer.outPoint;
+
+                // Remove ALL layers between first and last (inclusive of last,
+                // exclusive of first), matching by source AND time range.
+                for(var li8 = comp.numLayers; li8 >= 1; li8--){
+                    try{
+                        var l8 = comp.layer(li8);
+                        if(!l8 || l8 === firstLayer) continue;
+                        if(l8.source !== firstLayer.source) continue;
+                        // Check if this layer's time range falls within the merge span
+                        if(l8.inPoint >= firstSc.start_sec - eps &&
+                           l8.outPoint <= lastLayer.outPoint + eps &&
+                           l8.inPoint >= firstOrigOut - eps){
+                            l8.remove();
+                            layersRemoved++;
+                        }
+                    }catch(e){}
+                }
+                _writeLog("diag","[MERGE] merged layer: "+firstLayer.name+" outPoint="+lastLayer.outPoint+" layersRemoved="+layersRemoved);
+            }
+        }
+    }catch(e){
+        app.endUndoGroup();
+        _writeLog("diag","[MERGE] layer merge error: "+e.toString());
+    }
+    app.endUndoGroup();
+
+    // Do NOT call readMarkers() here — it may return inconsistent results
+    // (different layers, different dedup, etc.). Instead, the panel (main.js)
+    // reconstructs the scene list locally from the old scenes + merge groups.
+    return JSON.stringify({
+        ok: true,
+        groupsMerged: mergedCount,
+        removedMarkers: totalRemoved,
+        layersRemoved: layersRemoved
+    });
+}
+
+// Marker-based merge: remove internal boundary markers
+function _mergeMarkers(comp, layer, groups, removeTimes, mergedCount, fps){
     app.beginUndoGroup("SED: Merge Scenes");
     var removedKeys = 0;
     try{
         var markers = layer.property("Marker");
         if(markers && markers.numKeys > 0){
-            // Walk keys in REVERSE so removeKey() index shifting never
-            // skips a key — this is the same safe pattern AE scripting
-            // requires whenever removing multiple keyframes by index.
             for(var k = markers.numKeys; k >= 1; k--){
                 var kt = markers.keyTime(k);
                 var matched = false;
                 for(var r = 0; r < removeTimes.length; r++){
-                    if(Math.abs(kt - removeTimes[r]) <= eps){ matched = true; break; }
+                    if(Math.abs(kt - removeTimes[r]) <= 1/fps*0.5){ matched = true; break; }
                 }
                 if(matched){
                     markers.removeKey(k);
@@ -812,17 +1151,11 @@ function mergeScenes(groupsJson){
     app.endUndoGroup();
 
     if(removedKeys === 0){
-        // Groups looked valid in JS, but none of their boundary times
-        // matched a real AE marker — JS scene data is stale relative to
-        // current AE markers. Tell the user to re-read markers and retry,
-        // rather than falsely reporting success.
         return JSON.stringify({ok:false,
             msg:"No matching markers found to merge. Scene data may be out of date — click [Read Markers] and try again."});
     }
 
-    // Re-read markers to return the freshly-rebuilt scene list — this
-    // keeps JS and AE perfectly in sync (single source of truth = AE markers).
-    var rebuilt = readMarkersFromLayer(layer, comp);
+    var rebuilt = readMarkers();
     var rebuiltObj;
     try{ rebuiltObj = JSON.parse(rebuilt); }catch(e){ rebuiltObj = {ok:false}; }
 
@@ -837,6 +1170,175 @@ function mergeScenes(groupsJson){
         scenes: rebuiltObj.scenes,
         layerName: rebuiltObj.layerName,
         fps: rebuiltObj.fps
+    });
+}
+
+// Layer-based merge: merge already-cut layers by extending the first
+// layer's outPoint and deleting subsequent layers in each group
+function _mergeLayers(comp, groups, allGroupScenes, mergedCount, fps){
+    var eps = 1/fps * 0.5;
+    var totalBefore = comp.numLayers;
+    var totalRemoved = 0;
+    var removedMarkers = 0;
+
+    app.beginUndoGroup("SED: Merge Layers");
+    try{
+        for(var g = 0; g < groups.length; g++){
+            var grp = groups[g];
+            if(grp.length < 2) continue;
+
+            // Find layers matching the first and last scene in this group
+            var firstScene = grp[0];
+            var lastScene  = grp[grp.length - 1];
+            var firstLayer = null;
+            var lastLayer  = null;
+            var middleLayers = [];
+
+            for(var li = 1; li <= comp.numLayers; li++){
+                var l = comp.layer(li);
+                if(!l || !(l instanceof AVLayer)) continue;
+                // Match by inPoint/outPoint
+                if(Math.abs(l.inPoint - firstScene.start_sec) <= eps &&
+                   Math.abs(l.outPoint - firstScene.end_sec) <= eps){
+                    firstLayer = l;
+                }
+                if(Math.abs(l.inPoint - lastScene.start_sec) <= eps &&
+                   Math.abs(l.outPoint - (lastScene.start_sec + lastScene.dur_sec)) <= eps){
+                    lastLayer = l;
+                }
+            }
+
+            if(!firstLayer || !lastLayer) continue;
+
+            // Extend firstLayer's outPoint to lastLayer's outPoint
+            // This effectively merges all middle layers into the first one
+            firstLayer.outPoint = lastLayer.outPoint;
+
+            // Remove all markers on the first layer that fall between
+            // the original firstLayer.outPoint and the new outPoint
+            try{
+                var fm = firstLayer.property("Marker");
+                if(fm && fm.numKeys > 0){
+                    for(var fk = fm.numKeys; fk >= 1; fk--){
+                        var ft = fm.keyTime(fk);
+                        if(ft > firstScene.end_sec - eps && ft < lastScene.end_sec - eps){
+                            fm.removeKey(fk);
+                            removedMarkers++;
+                        }
+                    }
+                }
+            }catch(em){}
+
+            // Remove all layers between firstLayer and lastLayer
+            // Walk the layer stack from last back to avoid index shifts
+            for(var li2 = comp.numLayers; li2 >= 1; li2--){
+                var l2 = comp.layer(li2);
+                if(!l2 || l2 === firstLayer) continue;
+                var skip = false;
+                for(var gg = 0; gg < groups.length; gg++){
+                    for(var ss = 0; ss < groups[gg].length; ss++){
+                        var sc = groups[gg][ss];
+                        if(Math.abs(l2.inPoint - sc.start_sec) <= eps &&
+                           Math.abs(l2.outPoint - (sc.start_sec + sc.dur_sec)) <= eps){
+                            // This layer matches a scene, but is it IN our current merge group?
+                            var isInThisGroup = false;
+                            for(var mi = 0; mi < grp.length; mi++){
+                                if(Math.abs(grp[mi].start_sec - sc.start_sec) <= eps &&
+                                   Math.abs(grp[mi].end_sec - sc.end_sec) <= eps){
+                                    isInThisGroup = true; break;
+                                }
+                            }
+                            if(isInThisGroup && l2 !== firstLayer){
+                                try{ l2.remove(); totalRemoved++; } catch(er){}
+                            }
+                            skip = true;
+                            break;
+                        }
+                    }
+                    if(skip) break;
+                }
+            }
+        }
+    }catch(e){
+        app.endUndoGroup();
+        return JSON.stringify({ok:false,msg:"Layer merge failed: "+e.toString()});
+    }
+    app.endUndoGroup();
+
+    if(totalRemoved === 0){
+        // No layers matched — fall back to old behavior or report error
+        return JSON.stringify({ok:false,
+            msg:"No matching cut layers found. Try [Read Markers] first, then merge again."});
+    }
+
+    // Re-read scenes from the remaining layers
+    // Use the first remaining footage layer as the source for re-reading
+    var sceneLayer = null;
+    for(var li3 = 1; li3 <= comp.numLayers; li3++){
+        var l3 = comp.layer(li3);
+        if(l3 && l3 instanceof AVLayer && l3.source instanceof FootageItem){
+            sceneLayer = l3;
+            break;
+        }
+    }
+
+    if(sceneLayer){
+        var rebuilt = readMarkers();
+        var rebuiltObj;
+        try{ rebuiltObj = JSON.parse(rebuilt); }catch(e){ rebuiltObj = {ok:false}; }
+        if(rebuiltObj.ok){
+            return JSON.stringify({
+                ok: true,
+                groupsMerged: mergedCount,
+                removedMarkers: removedMarkers,
+                scenes: rebuiltObj.scenes,
+                layerName: rebuiltObj.layerName,
+                fps: rebuiltObj.fps,
+                layersRemoved: totalRemoved
+            });
+        }
+    }
+
+    // Fallback: construct scenes from the current layer trims
+    var layerScenes = [];
+    var layersFound = [];
+    for(var li4 = 1; li4 <= comp.numLayers; li4++){
+        var l4 = comp.layer(li4);
+        if(!l4 || !(l4 instanceof AVLayer)) continue;
+        var scStart = l4.inPoint;
+        var scEnd   = l4.outPoint;
+        if(scEnd > dur) scEnd = dur;
+        layersFound.push({
+            start_sec: scStart,
+            end_sec:   scEnd
+        });
+    }
+    layersFound.sort(function(a,b){ return a.start_sec - b.start_sec; });
+    for(var si = 0; si < layersFound.length; si++){
+        var s = layersFound[si].start_sec;
+        var e = layersFound[si].end_sec;
+        layerScenes.push({
+            index: si+1,
+            start_sec: s,
+            end_sec: e,
+            dur_sec: e-s,
+            start_tc: _fmtTC(s, fps),
+            end_tc: _fmtTC(e, fps),
+            dur_tc: _fmtTC(e-s, fps),
+            dur_str: _fmtDur(e-s),
+            fps: fps,
+            layerIndex: 1
+        });
+    }
+
+    return JSON.stringify({
+        ok: true,
+        groupsMerged: mergedCount,
+        removedMarkers: removedMarkers,
+        scenes: layerScenes,
+        layerName: "Merged layers",
+        fps: fps,
+        layersRemoved: totalRemoved
     });
 }
 
@@ -1046,6 +1548,40 @@ function getSourceFileInfo(){
 }
 
 // getTempFolderPath() — return temp folder path for JS to use in FFmpeg output
+// getAllSourceFilesInfo() — return source info for ALL footage layers
+// Used by multi-layer thumbnail pipeline to get per-layer source paths
+function getAllSourceFilesInfo(){
+    var comp=app.project.activeItem;
+    if(!comp||!(comp instanceof CompItem)) return JSON.stringify({ok:false,msg:"No active comp."});
+    var results = [];
+    for(var li=1; li<=comp.numLayers; li++){
+        try{
+            var l = comp.layer(li);
+            if(!l || !(l instanceof AVLayer)) continue;
+            if(!(l.source instanceof FootageItem)) continue;
+            var src = l.source;
+            if(!(src.mainSource instanceof FileSource)) continue;
+            var srcFile = src.mainSource.file;
+            if(!srcFile || !srcFile.exists) continue;
+            var sourceStartSec = 0;
+            try{ sourceStartSec = src.mainSource.startTimecode; }catch(e){}
+            try{ if(!sourceStartSec) sourceStartSec = src.displayStartTime||0; }catch(e2){}
+            results.push({
+                layerIndex: li,
+                layerName: l.name,
+                sourcePath: srcFile.fsName,
+                layerStartSec: l.startTime,
+                sourceStartSec: sourceStartSec,
+                hasVideo: src.hasVideo,
+                fps: comp.frameRate,
+                width: comp.width,
+                height: comp.height
+            });
+        }catch(e){}
+    }
+    return JSON.stringify({ok:true, layers:results});
+}
+
 function getTempFolderPath(customPath){
     var f=_getTmp(customPath);
     _writeLog("thumb","[TMP] resolved path="+f.fsName+" exists="+f.exists);
@@ -1504,11 +2040,15 @@ function runThumbGenPy(batchJson, pythonExe){
     var jobsArr = [];
     for(var ji = 0; ji < batch.length; ji++){
         var item = batch[ji];
-        jobsArr.push({idx: item.idx, seekSec: item.seekSec, outPath: item.outPath});
+        jobsArr.push({
+            idx:     item.idx,
+            seekSec: item.seekSec,
+            srcPath: item.srcPath,
+            outPath: item.outPath
+        });
     }
     var jobsData = {
-        source: batch[0].srcPath,
-        jobs:   jobsArr
+        jobs: jobsArr
     };
     var jobsPath = tmpDir + "\\sed_jobs.json";
     var jobsFile = new File(jobsPath);

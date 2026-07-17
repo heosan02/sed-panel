@@ -4,8 +4,14 @@ html, body {
   visibility: visible !important;
   display: block !important;
 }
+#app, #sidebar, #main {
+  isolation: isolate;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
 /* ═══════════════════════════════════════════════════════
-   SED Panel v7.0 — style.css
+   SED Panel v9.0 — style.css
    Design: Linear-inspired · Sharp · Minimal · Dark
    © 2026 Heosan
 ═══════════════════════════════════════════════════════ */
@@ -808,6 +814,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   overflow-x: hidden;
   padding: 6px;
   background: var(--bg);
+  transform: translateZ(0);
 }
 #grid { display: grid; gap: 4px; }
 .grid-empty {
@@ -835,6 +842,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   user-select: none;
   position: relative;
   will-change: transform;
+  contain: layout style paint;
   transition:
     border-color var(--t-fast),
     background   var(--t-fast),
@@ -877,6 +885,11 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   position: absolute;
   inset: 0;
   overflow: hidden;
+}
+.card-img-wrap.thumb-loaded {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 .card-img-wrap img {
   width: 100%;
@@ -1689,7 +1702,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .overlay, #onboard-overlay { transform: translateZ(0); }
 
 /* ════════════════════════════════════════════════════
-   v7.1 — Topbar 2-row collapsible + Logo + Transport
+   v9.0 — Topbar 2-row collapsible + Logo + Transport
 ════════════════════════════════════════════════════ */
 
 /* ── Logo icon: proper sizing ── */

@@ -2,7 +2,30 @@
 
 All notable changes to SED Panel will be documented here.
 
-## [2.2.0] - 2026-07-03
+## [3.0.0] — 2026-07-05
+
+### Added
+- Multi-layer scene marker reading support
+- Merge adjacent scenes feature
+- Export RQ: warning modal for >100 scenes with Langsung (Add All) and Manual options
+- Thumbnail cache system (JSON cache file in temp folder)
+- Python cv2 thumbnail pipeline for fast batch generation
+- Lazy thumbnail mode via AE saveFrameToPng
+- Custom temp folder picker via Settings
+
+### Changed
+- Thumbnail grid: column switcher (2/3/4/5 columns)
+- Scene cards show timecodes and thumbnails inline
+- Scene list with #, IN, DUR columns
+
+### Fixed
+- Thumbnail not stuck on scene 1-3 anymore
+- Cache miss detection and fallback to regeneration
+
+### Compatibility
+- Adobe After Effects 2022 (v22.0) through 2026 (v26.0)
+
+## [2.2.0] — 2026-07-03
 
 ### Added
 - FFmpeg thumbnail pipeline for fast batch extraction

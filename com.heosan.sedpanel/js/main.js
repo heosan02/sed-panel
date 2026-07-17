@@ -1,4 +1,4 @@
-/* SED Panel v2.2 - main.js - (c) 2026 Heosan */
+/* SED Panel v3.0 - main.js - (c) 2026 Heosan */
 /* global CSInterface */
 (function(){
 "use strict";
@@ -22,7 +22,7 @@ var LANG_KEY = "sed_panel_lang";
 var TMP_KEY = "sed_panel_custom_tmp";
 var UPDATE_NOTIF_KEY = "sed_panel_update_notif";
 var UPDATE_LATER_KEY = "sed_panel_update_later_at";
-var CUR_VER = "2.2.0";
+var CUR_VER = "3.0.0";
 var GH_REPO = "heosan02/sed-panel";
 
 // ═══ i18n ══════════════════════════════════════════════
@@ -498,21 +498,22 @@ $("open-tutorial-btn").addEventListener("click",function(){
 
 // ── FFmpeg + Python state (resolved once per session) ────
 var _ffmpeg = {
-  checked:   false,   // FFmpeg sudah dicek belum
-  available: false,   // apakah FFmpeg tersedia
-  path:      "",      // path FFmpeg executable
-  tier:      0,       // 1=PATH, 2=bundled, 0=tidak ada
-  // Python state (checked once per session)
-  pyChecked:  false,  // Python sudah dicek belum
-  pyAvail:    false,  // apakah Python tersedia
-  pyPath:     "",     // path Python executable
-  // source info (resolved once per thumb session)
+  checked:   false,
+  available: false,
+  path:      "",
+  tier:      0,
+  pyChecked:  false,
+  pyAvail:    false,
+  pyPath:     "",
   srcInfoDone:    false,
   sourcePath:     "",
   layerStartSec:  0,
   sourceStartSec: 0,
   fps:            24,
-  tmpPath:        ""
+  tmpPath:        "",
+  // v9.0: per-layer source map for multi-layer support
+  // {layerIndex: {sourcePath, layerStartSec, sourceStartSec}}
+  layerSources: null
 };
 
 // ── Resolve FFmpeg once, then call callback(available) ───
@@ -530,18 +531,65 @@ function _resolveFFmpeg(cb){
 // ── Resolve source file info once per thumb session ──────
 function _resolveSourceInfo(cb){
   if(_ffmpeg.srcInfoDone){ cb(true); return; }
-  callHost("getSourceFileInfo",[],function(res){
-    if(res && res.ok){
-      _ffmpeg.srcInfoDone   = true;
-      _ffmpeg.sourcePath    = res.sourcePath || "";
-      _ffmpeg.layerStartSec = res.layerStartSec || 0;
-      _ffmpeg.sourceStartSec= res.sourceStartSec || 0;
-      _ffmpeg.fps           = res.fps || S.fps || 24;
-      cb(true);
-    } else {
-      cb(false);
+  // v9.0: Get source info for the primary (active) layer AND all layers
+  callHost("getSourceFileInfo",[],function(primaryRes){
+    if(!primaryRes || !primaryRes.ok){
+      cb(false); return;
     }
+    _ffmpeg.sourcePath    = primaryRes.sourcePath || "";
+    _ffmpeg.layerStartSec = primaryRes.layerStartSec || 0;
+    _ffmpeg.sourceStartSec= primaryRes.sourceStartSec || 0;
+    _ffmpeg.fps           = primaryRes.fps || S.fps || 24;
+
+    // Get source info for ALL footage layers (for multi-layer support)
+    callHost("getAllSourceFilesInfo",[],function(allRes){
+      if(allRes && allRes.ok && allRes.layers && allRes.layers.length > 0){
+        _ffmpeg.layerSources = {};
+        for(var li = 0; li < allRes.layers.length; li++){
+          var l = allRes.layers[li];
+          _ffmpeg.layerSources[l.layerIndex] = {
+            sourcePath:     l.sourcePath,
+            layerStartSec:  l.layerStartSec,
+            sourceStartSec: l.sourceStartSec
+          };
+        }
+      } else {
+        // Fallback: use primary source for all scenes
+        _ffmpeg.layerSources = {1: {
+          sourcePath:     _ffmpeg.sourcePath,
+          layerStartSec:  _ffmpeg.layerStartSec,
+          sourceStartSec: _ffmpeg.sourceStartSec
+        }};
+      }
+      _ffmpeg.srcInfoDone = true;
+      cb(true);
+    });
   });
+}
+
+// ── Get source info for a specific scene (respects layerIndex) ──
+function _getSourceForScene(sc){
+  var layerIdx = sc.layerIndex || 1;
+  if(_ffmpeg.layerSources && _ffmpeg.layerSources[layerIdx]){
+    return _ffmpeg.layerSources[layerIdx];
+  }
+  // Fallback to primary or first available source
+  if(_ffmpeg.layerSources){
+    var keys = Object.keys(_ffmpeg.layerSources);
+    if(keys.length > 0) return _ffmpeg.layerSources[keys[0]];
+  }
+  return {
+    sourcePath:     _ffmpeg.sourcePath || "",
+    layerStartSec:  _ffmpeg.layerStartSec || 0,
+    sourceStartSec: _ffmpeg.sourceStartSec || 0
+  };
+}
+
+// ── Calculate source seek time for a specific scene ───────
+function _calcSourceSecForScene(sc, compSec){
+  var srcInfo = _getSourceForScene(sc);
+  var t = compSec - srcInfo.layerStartSec + srcInfo.sourceStartSec;
+  return Math.max(0, t);
 }
 
 // ── Resolve temp folder path via JSX ─────────────────────
@@ -700,26 +748,34 @@ function _startPyLoadPhase(donePath, resultsPath, errPath, onDone, onFail){
   catch(e){ onFail("Bad JSON from Python: "+resultsJson.substring(0,150)); return; }
   if(!parsed.ok){ onFail(parsed.msg || "unknown Python error"); return; }
   var results = parsed.results || [];
+  // Sort by scene index to guarantee correct order
+  results.sort(function(a,b){ return a.idx - b.idx; });
 
   // Reset modal: remove ETA, show "Loading X / Y" instead
   var subEl = $("thumb-progress-sub");
   if(subEl) subEl.textContent = t("thumb_loading");
   setThumbProgress(0, S.scenes.length);
 
-  (function injectOne(i){
-    if(_thumbCancelled){ return; }
-    if(i >= results.length){
+  var _injIdx = 0;
+  var BATCH = 100;
+  function _injBatch(){
+    if(_thumbCancelled) return;
+    var end = Math.min(_injIdx + BATCH, results.length);
+    for(; _injIdx < end; _injIdx++){
+      var r = results[_injIdx];
+      if(r.ok && r.path && S.thumbs[r.idx] === undefined){
+        _thumbFailStreak = 0;
+        acceptThumbJPG(r.idx, r.path, filePathToURI(r.path));
+      }
+    }
+    setThumbProgress(S.thumbDone, S.scenes.length);
+    if(_injIdx >= results.length){
       onDone(results);
-      return;
+    } else {
+      requestAnimationFrame(_injBatch);
     }
-    var r = results[i];
-    if(r.ok && r.path && S.thumbs[r.idx] === undefined){
-      _thumbFailStreak = 0;
-      acceptThumbJPG(r.idx, r.path, filePathToURI(r.path));
-      setThumbProgress(S.thumbDone, S.scenes.length);
-    }
-    setTimeout(function(){ injectOne(i+1); }, 20);
-  })(0);
+  }
+  _injBatch();
 }
 
 // _startPoller(expectedPaths) — begin polling for all expected output files
@@ -830,28 +886,26 @@ function _doStartThumb(){
   function _buildBatch(tmpPath){
     var batch = [];
     var tmpWin = tmpPath.replace(/\//g,"\\").replace(/\\+$/, "");
-    // Get source duration for clamping
     var srcDur = (_ffmpeg.fps > 0 && S.scenes.length > 0)
         ? (S.scenes[S.scenes.length-1].start_sec + S.scenes[S.scenes.length-1].dur_sec)
         : 999999;
     for(var i = 0; i < S.scenes.length; i++){
       var sc      = S.scenes[i];
-      // Snap at 30% into scene — but clamp so we never seek past end
       var snapRaw = sc.start_sec + sc.dur_sec * 0.3;
-      // Clamp: max = sceneEnd - 1 frame, min = sceneStart
       var frameTime = 1.0 / (_ffmpeg.fps || 24);
       var sceneEnd  = sc.start_sec + sc.dur_sec - frameTime;
       var compSec   = Math.max(sc.start_sec, Math.min(snapRaw, sceneEnd));
-      // Also clamp against source duration
       compSec       = Math.min(compSec, srcDur - frameTime);
       compSec       = Math.max(0, compSec);
-      var srcSec    = _calcSourceSec(compSec);
-      srcSec        = Math.max(0, srcSec);
-      var outName   = "sed_ff_" + pad3(i+1) + "_" + Math.round(compSec*1000) + ".jpg";
+      // v9.0: use per-layer source for multi-layer support
+      var srcInfo = _getSourceForScene(sc);
+      var srcSec  = compSec - srcInfo.layerStartSec + srcInfo.sourceStartSec;
+      srcSec      = Math.max(0, srcSec);
+      var outName = "sed_ff_" + pad3(i+1) + "_" + Math.round(compSec*1000) + ".jpg";
       batch.push({
         idx:     i,
         seekSec: srcSec,
-        srcPath: _ffmpeg.sourcePath,
+        srcPath: srcInfo.sourcePath,
         outPath: tmpWin + "\\" + outName
       });
     }
@@ -933,6 +987,17 @@ function _doStartThumb(){
           _jsLog("thumb","[FALLBACK] no src/tmp → AE pipeline");
           _captureNext(0); return;
         }
+
+        // Try loading from cache (non-blocking — pipeline does NOT wait for this)
+        _tryLoadThumbCache(tmpPath, S.scenes, function(cached, thumbs, paths, count){
+          if(cached && thumbs && count === S.scenes.length && !_thumbGenFinished){
+            S.thumbs = thumbs;
+            S.thumbPaths = paths;
+            S.thumbDone = count;
+            setThumbCount(count);
+            _finishThumbGen();
+          }
+        });
 
         var batch = _buildBatch(tmpPath);
 
@@ -1030,7 +1095,7 @@ function _doStartThumb(){
             _launchAndPoll("launchFFmpegAllAsync", batch, _ffmpeg.path);
           });
         }
-      });
+      }); // end _resolveTmpPath
     });
   });
 }
@@ -1056,14 +1121,8 @@ function acceptThumbJPG(idx, path, uri){
   S.thumbPaths[idx] = path;
   S.thumbDone++;
   setThumbCount(S.thumbDone);
-  var dataURI = _readBase64(path);
-  if(dataURI){
-    S.thumbs[idx] = dataURI;
-    _injectThumbDirect(idx, dataURI, path);
-  } else {
-    S.thumbs[idx] = uri || filePathToURI(path);
-    _injectThumb(idx, S.thumbs[idx], path);
-  }
+  S.thumbs[idx] = uri || filePathToURI(path);
+  _injectThumb(idx, S.thumbs[idx], path);
   return true;
 }
 
@@ -1095,19 +1154,13 @@ function _readBase64(path){
 
 // _injectThumbDirect — inject pre-loaded data URI, no async loading needed
 function _injectThumbDirect(idx, dataURI, path){
-  var card = document.querySelector(".scene-card[data-idx=\'"+idx+"\']");
+  var card = document.querySelector(".scene-card[data-idx='"+idx+"']");
   if(!card) return;
   var wrap = card.querySelector(".card-img-wrap");
   if(!wrap) return;
   wrap.innerHTML = "";
-  wrap.classList.remove("card-img-ph");
-  var img = document.createElement("img");
-  img.alt = "";
-  img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
-  img.src = dataURI;
-  // Do NOT delete temp files here — keep them until user clicks Clean Tmp
-  // This allows thumbnails to survive panel reload/refresh
-  wrap.appendChild(img);
+  wrap.classList.remove("card-img-ph"); wrap.classList.add("thumb-loaded");
+  wrap.style.backgroundImage = "url('"+dataURI.replace(/'/g,"%27")+"')";
   var num = card.querySelector(".card-thumb-num");
   if(num) num.style.display = "none";
 }
@@ -1131,6 +1184,90 @@ function _captureNext(i){
     setTimeout(function(){ _captureNext(i+1); }, 0);
   });
 }
+function _saveThumbCache(){
+  if(!_ffmpeg.tmpPath || S.thumbDone !== S.scenes.length) return;
+  var cachePath = _ffmpeg.tmpPath.replace(/\\/g,"/").replace(/\/+$/, "") + "/sed_thumb_cache.json";
+  var sceneEntries = [];
+  for(var ci = 0; ci < S.scenes.length; ci++){
+    var sc = S.scenes[ci];
+    var thumbPath = S.thumbPaths[ci] || "";
+    var srcInfo = _getSourceForScene(sc);
+    sceneEntries.push({
+      idx: ci,
+      sourcePath: srcInfo.sourcePath || "",
+      startSec: sc.start_sec,
+      durSec: sc.dur_sec,
+      thumbPath: thumbPath
+    });
+  }
+  var cacheData = {
+    version: 1,
+    scenes: sceneEntries,
+    savedAt: new Date().toISOString()
+  };
+  try{
+    window.cep.fs.writeFile(cachePath, JSON.stringify(cacheData));
+    _jsLog("thumb","[CACHE SAVED] scenes="+sceneEntries.length);
+  }catch(e){
+    _jsLog("thumb","[CACHE SAVE FAIL] "+e.toString());
+  }
+}
+
+function _tryLoadThumbCache(tmpPath, scenes, cb){
+  var cachePath = tmpPath.replace(/\\/g,"/").replace(/\/+$/, "") + "/sed_thumb_cache.json";
+  try{
+    if(!window.cep || !window.cep.fs) { cb(false); return; }
+    window.cep.fs.readFile(cachePath, "utf-8", function(err, data){
+      if(err || !data){ cb(false); return; }
+      var cache;
+      try{ cache = JSON.parse(data); }catch(e){ cb(false); return; }
+      if(!cache || cache.version !== 1 || !cache.scenes || cache.scenes.length !== scenes.length){
+        cb(false); return;
+      }
+      var valid = true;
+      var newThumbs = {};
+      var newPaths = {};
+      for(var ci = 0; ci < scenes.length; ci++){
+        var sc = scenes[ci];
+        var cached = null;
+        for(var cj = 0; cj < cache.scenes.length; cj++){
+          var ce = cache.scenes[cj];
+          if(Math.abs(ce.startSec - sc.start_sec) < 0.01 &&
+             Math.abs(ce.durSec - sc.dur_sec) < 0.01 &&
+             ce.idx === ci){
+            cached = ce;
+            break;
+          }
+        }
+        if(!cached || !cached.thumbPath || !cached.sourcePath){
+          valid = false; break;
+        }
+        // Verify thumbnail file still exists
+        var srcInfo = _getSourceForScene(sc);
+        if(cached.sourcePath !== srcInfo.sourcePath){
+          valid = false; break;
+        }
+        try{
+          var finfo = window.cep.fs.stat(cached.thumbPath);
+          if(!finfo || finfo.err){ valid = false; break; }
+        }catch(e){ valid = false; break; }
+        newThumbs[ci] = "file:///" + cached.thumbPath.replace(/\\/g,"/");
+        newPaths[ci] = cached.thumbPath;
+      }
+      if(valid){
+        _jsLog("thumb","[CACHE HIT] loading "+newPaths.length+" thumbnails from cache");
+        cb(true, newThumbs, newPaths, newPaths.length);
+      } else {
+        _jsLog("thumb","[CACHE MISS] thumbnail cache invalid, re-rendering");
+        cb(false);
+      }
+    });
+  }catch(e){
+    _jsLog("thumb","[CACHE CHECK FAIL] "+e.toString());
+    cb(false);
+  }
+}
+
 function _finishThumbGen(){
   if(_thumbCancelled) return;
   if(_thumbGenFinished) return;
@@ -1149,6 +1286,8 @@ function _finishThumbGen(){
     setStatus(t("thumb_done",{ok:S.thumbDone,n:S.scenes.length})+" ("+S.thumbDone+"/"+S.scenes.length+")","warn");
   } else {
     setStatus(t("thumb_done",{ok:S.thumbDone,n:S.scenes.length}),"ok");
+    // Save thumbnail cache for future use
+    _saveThumbCache();
   }
 }
 
@@ -1195,23 +1334,8 @@ function _showThumbDiag(){
 function _injectThumb(idx,uri,path){
   var card=document.querySelector(".scene-card[data-idx='"+idx+"']"); if(!card) return;
   var wrap=card.querySelector(".card-img-wrap"); if(!wrap) return;
-  wrap.innerHTML=""; wrap.classList.remove("card-img-ph");
-  var img=document.createElement("img");
-  img.alt="";
-  img.style.cssText="width:100%;height:100%;object-fit:cover;display:block;";
-  if(path){
-    var isJpg = /\.jpe?g$/i.test(path);
-    // No deletion on load — files kept until user clicks Clean Tmp
-    img.onload = function(){};
-    img.onerror=function(){
-      if(img.dataset.fallback==="1") return;
-      img.dataset.fallback="1";
-      var data=readThumbDataURI(path);
-      if(data) img.src=data;
-    };
-  }
-  img.src=uri;
-  wrap.appendChild(img);
+  wrap.innerHTML=""; wrap.classList.remove("card-img-ph"); wrap.classList.add("thumb-loaded");
+  wrap.style.backgroundImage="url('"+uri.replace(/'/g,"%27")+"')";
   var num=card.querySelector(".card-thumb-num"); if(num) num.style.display="none";
 }
 
@@ -1394,7 +1518,7 @@ $("diag-btn").addEventListener("click",function(){
     if(!res){ setStatus("Diagnostics failed","warn"); return; }
 
     var lines = [];
-    lines.push("═══ SED Panel v2.2 — Full Diagnostics ═══");
+    lines.push("═══ SED Panel v3.0 — Full Diagnostics ═══");
     lines.push("");
     lines.push("AE Version    : " + (res.aeVersion||"?"));
     lines.push("");
@@ -1588,7 +1712,9 @@ $("comp-mrkr-btn").addEventListener("click",function(){
 // (e.g. scenes 1,2 AND 5,6,7 selected together → two independent merges).
 
 // _groupAdjacentSelection() — splits S.selected into clusters of
-// consecutive scene indices (e.g. [0,1,4,5,6,9] → [[0,1],[4,5,6],[9]]).
+// consecutive scene indices from the SAME layer
+// (e.g. [0,1,4,5,6,9] → [[0,1],[4,5,6],[9]]).
+// Scenes from different layers are never grouped together.
 // Returns ALL clusters (including singletons) sorted ascending —
 // caller decides what to do with clusters of length 1 (skip them).
 function _groupAdjacentSelection(){
@@ -1597,11 +1723,19 @@ function _groupAdjacentSelection(){
   var current = [];
   for(var i=0;i<sorted.length;i++){
     var idx = sorted[i];
-    if(current.length===0 || idx === current[current.length-1]+1){
+    var sc = S.scenes[idx];
+    if(current.length===0){
       current.push(idx);
     } else {
-      clusters.push(current);
-      current = [idx];
+      var lastIdx = current[current.length-1];
+      var lastSc = S.scenes[lastIdx];
+      // MUST be: consecutive panel index AND same layer
+      if(idx === lastIdx+1 && sc.layerIndex === lastSc.layerIndex){
+        current.push(idx);
+      } else {
+        clusters.push(current);
+        current = [idx];
+      }
     }
   }
   if(current.length) clusters.push(current);
@@ -1684,49 +1818,117 @@ $("merge-btn").addEventListener("click",function(){
       return;
     }
 
-    // ── Remap thumbnails & selection onto the new scene list ──
-    // Per merge group, the new merged scene re-uses the THUMBNAIL of the
-    // FIRST scene in that group (fast — no re-render needed). Scenes
-    // outside any merged group keep their original thumbnail unchanged.
-    // Matching old→new scenes is done by start_sec, since indices shift
-    // after markers are removed and AE re-numbers everything.
+    // ── Reconstruct scene list from old scenes + merge groups ──
+    // DO NOT use res.scenes from the host — readMarkers() may return
+    // different results due to multi-layer dedup. Instead, rebuild
+    // locally: merge groups become single scenes, everything else stays.
     var oldScenes = S.scenes;
-    var newScenes = res.scenes || [];
+    var newScenes = [];
+    var fps = oldScenes.length > 0 ? oldScenes[0].fps || 30 : 30;
 
-    // For each old scene index, determine which NEW scene (by start_sec
-    // range) it now belongs to, and whether it was the "first" scene of
-    // its merge group (i.e. the one whose thumbnail should carry over).
+    // Build a flat set of old indices that are part of a merge group.
+    // Also build an array of group descriptors: [{head, tail, indices[]}]
+    var mergedOldIdxSet = {};
+    var mergeGroupList = [];
+    mergeable.forEach(function(grp){
+      var entry = {head: grp[0], tail: grp[grp.length-1], indices: grp};
+      mergeGroupList.push(entry);
+      grp.forEach(function(idx){ mergedOldIdxSet[idx] = true; });
+    });
+
+    // Build newScenes by walking old scenes sequentially.
+    // When we hit the head of a merge group, create the merged scene
+    // and skip past the group tail.
+    var ni = 0;
+    var oi = 0;
+    while(oi < oldScenes.length){
+      if(mergedOldIdxSet[oi]){
+        // Find which group this belongs to
+        var foundGroup = null;
+        for(var mg = 0; mg < mergeGroupList.length; mg++){
+          if(mergeGroupList[mg].indices.indexOf(oi) >= 0){
+            foundGroup = mergeGroupList[mg];
+            break;
+          }
+        }
+        if(foundGroup && oi === foundGroup.head){
+          // Create merged scene for this group
+          var firstSc = oldScenes[foundGroup.head];
+          var lastSc  = oldScenes[foundGroup.tail];
+          var mergedStart = firstSc.start_sec;
+          var mergedEnd   = lastSc.end_sec;
+          var mergedDur   = mergedEnd - mergedStart;
+          newScenes.push({
+            index:     ni + 1,
+            start_sec: mergedStart,
+            end_sec:   mergedEnd,
+            dur_sec:   mergedDur,
+            start_tc:  firstSc.start_tc,
+            end_tc:    lastSc.end_tc,
+            dur_tc:    fmtTC(mergedDur, fps),
+            dur_str:   _fmtDuration(mergedDur),
+            fps:       fps,
+            layerIndex: firstSc.layerIndex,
+            layerName:  firstSc.layerName
+          });
+          ni++;
+          oi = foundGroup.tail + 1; // skip all merged scenes
+        } else {
+          // Should not happen (middle of group) — skip
+          oi++;
+        }
+      } else {
+        // Non-merged scene — copy
+        var osc = oldScenes[oi];
+        newScenes.push({
+          index:     ni + 1,
+          start_sec: osc.start_sec,
+          end_sec:   osc.end_sec,
+          dur_sec:   osc.dur_sec,
+          start_tc:  osc.start_tc,
+          end_tc:    osc.end_tc,
+          dur_tc:    osc.dur_tc,
+          dur_str:   osc.dur_str,
+          fps:       osc.fps,
+          layerIndex: osc.layerIndex,
+          layerName:  osc.layerName
+        });
+        ni++;
+        oi++;
+      }
+    }
+
+    _jsLog("thumb","[MERGE DEBUG] oldLen="+oldScenes.length+" mergeable="+JSON.stringify(mergeable)+" newLen="+newScenes.length);
+
+    // ── Remap thumbnails ──
     var newThumbs={}, newPaths={}, newDone=0;
     var newSelected=[];
 
-    newScenes.forEach(function(nsc, newIdx){
-      // Find ALL old scenes whose start_sec falls inside this new scene's
-      // [start_sec, end_sec) range — for an unmerged scene there's exactly
-      // one; for a merged group there are 2+ (the group's original members).
-      // The FIRST one found (lowest start_sec) is the "donor" whose
-      // thumbnail carries over to the merged scene.
+    for(var nii = 0; nii < newScenes.length; nii++){
+      // Find donor old scene: the FIRST old scene whose start_sec falls
+      // inside this new scene's range (same as before).
       var donorOldIdx = -1;
       var coveredOld = 0;
       var anySelectedInRange = false;
-      for(var oi=0; oi<oldScenes.length; oi++){
-        var osc = oldScenes[oi];
-        if(osc.start_sec >= nsc.start_sec - 0.001 && osc.start_sec < nsc.end_sec - 0.0005){
-          if(donorOldIdx===-1) donorOldIdx = oi; // first match = earliest old scene = group head
+      for(var oi2 = 0; oi2 < oldScenes.length; oi2++){
+        var osc2 = oldScenes[oi2];
+        if(osc2.start_sec >= newScenes[nii].start_sec - 0.001 &&
+           osc2.start_sec <  newScenes[nii].end_sec - 0.0005){
+          if(donorOldIdx === -1) donorOldIdx = oi2;
           coveredOld++;
-          if(S.selected.indexOf(oi)>=0) anySelectedInRange = true;
+          if(S.selected.indexOf(oi2) >= 0 && !mergedOldIdxSet[oi2]){
+            anySelectedInRange = true;
+          }
         }
       }
-      if(donorOldIdx>=0 && S.thumbs[donorOldIdx]){
-        newThumbs[newIdx]=S.thumbs[donorOldIdx];
-        if(S.thumbPaths[donorOldIdx]) newPaths[newIdx]=S.thumbPaths[donorOldIdx];
+      if(donorOldIdx >= 0 && S.thumbs[donorOldIdx]){
+        newThumbs[nii] = S.thumbs[donorOldIdx];
+        if(S.thumbPaths[donorOldIdx]) newPaths[nii] = S.thumbPaths[donorOldIdx];
         newDone++;
       }
-      // Auto-select/mark newly merged scenes so they're ready for
-      // immediate export/cut. A "merged" scene is one whose donor range
-      // spans 2+ original scenes (a real merge happened here).
       var spanIsMerge = coveredOld >= 2;
-      if(spanIsMerge || anySelectedInRange) newSelected.push(newIdx);
-    });
+      if(spanIsMerge || anySelectedInRange) newSelected.push(nii);
+    }
 
     S.scenes = newScenes;
     S.thumbs = newThumbs; S.thumbPaths = newPaths; S.thumbDone = newDone;
@@ -1913,67 +2115,86 @@ function refreshList(){
   if(!S.detectDone||!S.scenes.length){
     tb.innerHTML='<tr><td colspan="4" class="list-empty">'+t("no_scenes")+'</td></tr>';return;
   }
+  var selSet = new Set(S.selected);
+  var frag = document.createDocumentFragment();
   S.scenes.forEach(function(sc,i){
     var tr=document.createElement("tr");
     tr.dataset.idx=i;
     if(S.activeIdx===i)tr.classList.add("active");
-    if(S.selected.indexOf(i)>=0)tr.classList.add("marked");
+    if(selSet.has(i))tr.classList.add("marked");
     tr.innerHTML="<td>"+pad3(sc.index)+"</td>"+
       "<td class='tc-cell'>"+sc.start_tc+"</td>"+
       "<td class='tc-cell'>"+sc.dur_str+"</td>"+
-      "<td class='mark-cell'>"+(S.selected.indexOf(i)>=0?"✔":"")+"</td>";
-    tr.addEventListener("click",function(e){if(e.ctrlKey||e.metaKey)toggleMark(i);else selectScene(i);});
-    tr.addEventListener("dblclick",function(){toggleMark(i);});
-    tb.appendChild(tr);
+      "<td class='mark-cell'>"+(selSet.has(i)?"✔":"")+"</td>";
+    frag.appendChild(tr);
   });
+  tb.appendChild(frag);
   if(S.activeIdx>=0){
     var rows=tb.querySelectorAll("tr");
     if(rows[S.activeIdx])rows[S.activeIdx].scrollIntoView({block:"nearest"});
   }
 }
 
-function refreshGrid(){
+var _gridRefreshToken = 0;
+
+function refreshGrid(cb){
+  var token = ++_gridRefreshToken;
   var grid=$("grid");grid.innerHTML="";
   grid.style.gridTemplateColumns="repeat("+S.cols+",1fr)";
   if(!S.detectDone||!S.scenes.length){
     var e=document.createElement("div");e.className="grid-empty";
-    e.textContent=t("no_scenes");grid.appendChild(e);return;
+    e.textContent=t("no_scenes");grid.appendChild(e);
+    if(cb) cb();
+    return;
   }
-  S.scenes.forEach(function(sc,i){
-    var card=document.createElement("div");
-    card.className="scene-card"; card.dataset.idx=i;
-    if(S.activeIdx===i)card.classList.add("active");
-    if(S.selected.indexOf(i)>=0)card.classList.add("marked");
-    var mk=S.selected.indexOf(i)>=0;
-    var uri=S.thumbs[i]||null;
-    var imgHTML=uri
-      ?"<div class='card-img-wrap'><img src='"+uri+"' alt=''/></div>"
-      :"<div class='card-img-wrap card-img-ph'></div><span class='card-thumb-num'>"+pad3(sc.index)+"</span>";
-    card.innerHTML=
-      "<div class='card-thumb'>"+imgHTML+
-        "<span class='card-thumb-tc'>"+sc.start_tc+"</span>"+
-        (mk?"<span class='card-thumb-mark'>✔</span>":"")+
-        "<div class='card-play-track'><div class='card-play-bar'></div></div>"+
-      "</div>"+
-      "<div class='card-meta'>"+
-        "<span class='card-num'>#"+pad3(sc.index)+"</span>"+
-        "<span class='card-dur'>"+sc.dur_str+"</span>"+
-      "</div>";
-    if(uri&&S.thumbPaths[i]){
-      (function(img,path){
-        if(!img) return;
-        img.onerror=function(){
-          if(img.dataset.fallback==="1") return;
-          img.dataset.fallback="1";
-          var data=readThumbDataURI(path);
-          if(data&&data!==img.src) img.src=data;
-        };
-      })(card.querySelector("img"),S.thumbPaths[i]);
+  var selSet = new Set(S.selected);
+  var bi = 0;
+  var BATCH = 100;
+  function addNext(){
+    if(token !== _gridRefreshToken) return;
+    if(bi >= S.scenes.length){
+      if(cb) setTimeout(cb, 0);
+      return;
     }
-    card.addEventListener("click",function(e){if(e.ctrlKey||e.metaKey)toggleMark(i);else selectScene(i);});
-    card.addEventListener("dblclick",function(){toggleMark(i);});
-    grid.appendChild(card);
+    var end = Math.min(bi + BATCH, S.scenes.length);
+    var frag = document.createDocumentFragment();
+    for(; bi < end; bi++){
+      var sc = S.scenes[bi];
+      var i = bi;
+      var card=document.createElement("div");
+      card.className="scene-card"; card.dataset.idx=i;
+      if(S.activeIdx===i)card.classList.add("active");
+      if(selSet.has(i))card.classList.add("marked");
+      var mk=selSet.has(i);
+      var uri=S.thumbs[i]||null;
+      var hasThumb = !!uri;
+      var imgHTML = hasThumb
+        ? "<div class='card-img-wrap thumb-loaded' style='background-image:url("+JSON.stringify(uri)+");background-size:cover;background-position:center'></div>"
+        : "<div class='card-img-wrap card-img-ph'></div>" +
+          "<span class='card-thumb-num'>"+pad3(sc.index)+"</span>";
+      card.innerHTML=
+        "<div class='card-thumb'>"+imgHTML+
+          "<span class='card-thumb-tc'>"+sc.start_tc+"</span>"+
+          (mk?"<span class='card-thumb-mark'>✔</span>":"")+
+          "<div class='card-play-track'><div class='card-play-bar'></div></div>"+
+        "</div>"+
+        "<div class='card-meta'>"+
+          "<span class='card-num'>#"+pad3(sc.index)+"</span>"+
+          "<span class='card-dur'>"+sc.dur_str+"</span>"+
+        "</div>";
+      frag.appendChild(card);
+    }
+    grid.appendChild(frag);
+    requestAnimationFrame(addNext);
+  }
+  addNext();
+}
+
+function _rebuildDisplay(restoreThumbs){
+  refreshGrid(function(){
+    if(restoreThumbs && S.thumbDone > 0) _restoreThumbsFromMemory();
   });
+  refreshList();
 }
 
 // ═══ Init ════════════════════════════════════════════════
@@ -2001,10 +2222,73 @@ function refreshGrid(){
     });
   });
   refreshAll();
+  // Event delegation for scene list (instead of per-row listeners)
+  var tb=$("scene-tbody");
+  tb.addEventListener("click",function(e){
+    var tr=e.target.closest("tr");
+    if(!tr||!tr.dataset)return;
+    var i=parseInt(tr.dataset.idx,10);
+    if(isNaN(i))return;
+    if(e.ctrlKey||e.metaKey){toggleMark(i);}else{selectScene(i);}
+  });
+  tb.addEventListener("dblclick",function(e){
+    var tr=e.target.closest("tr");
+    if(!tr||!tr.dataset)return;
+    var i=parseInt(tr.dataset.idx,10);
+    if(isNaN(i))return;
+    toggleMark(i);
+  });
+  // Event delegation for grid cards
+  var grid=$("grid");
+  grid.addEventListener("click",function(e){
+    var card=e.target.closest(".scene-card");
+    if(!card||!card.dataset)return;
+    var i=parseInt(card.dataset.idx,10);
+    if(isNaN(i))return;
+    if(e.ctrlKey||e.metaKey){toggleMark(i);}else{selectScene(i);}
+  });
+  grid.addEventListener("dblclick",function(e){
+    var card=e.target.closest(".scene-card");
+    if(!card||!card.dataset)return;
+    var i=parseInt(card.dataset.idx,10);
+    if(isNaN(i))return;
+    toggleMark(i);
+  });
 })();
 
 // ── AE Version check: called once on startup ──────────────
 var S_aeVer={num:0,name:'',sedSupport:false,checked:false};
+function _applyVersionResult(num, major, name, sedSupport){
+  S_aeVer.num        = num;
+  S_aeVer.major      = major;
+  S_aeVer.name       = name;
+  S_aeVer.sedSupport = sedSupport;
+  S_aeVer.checked    = true;
+  applyAECompat();
+}
+function _fallbackVersionDetect(){
+  // Use CEP HostEnvironment (no ExtendScript needed) as fallback
+  try{
+    var env = cs.hostEnvironment || cs.getHostEnvironment();
+    if(env && env.appId === "AEFT" && env.appVersion){
+      var clean = String(env.appVersion).replace(/[^0-9.]/g, "");
+      var num = parseFloat(clean) || 0;
+      var major = Math.floor(num);
+      var names = {13:"CC 2014",14:"CC 2017",15:"CC 2018",16:"CC 2019",17:"2020",18:"2021",22:"2022",23:"2023",24:"2024",25:"2025",26:"2026"};
+      var name = names[major] || (num > 0 ? "v"+String(env.appVersion) : "Unknown");
+      var sedSupport = (num >= 22);
+      _applyVersionResult(num, major, name, sedSupport);
+      return;
+    }
+  }catch(e){}
+  // Last resort: assume modern AE — force button visible
+  S_aeVer.num        = 99;
+  S_aeVer.major      = 99;
+  S_aeVer.name       = "2026+";
+  S_aeVer.sedSupport = true;
+  S_aeVer.checked    = true;
+  applyAECompat();
+}
 function checkAEVersion(){
   // AE may not be fully initialized when panel first loads.
   // If version=0, retry up to 3 times with 1s delay.
@@ -2015,22 +2299,18 @@ function checkAEVersion(){
         try{
           if(!res||!res.ok){
             if(_retries++ < 3){ setTimeout(_doCheck, 1000); return; }
-            S_aeVer.checked=true; applyAECompat(); return;
+            _fallbackVersionDetect();
+            return;
           }
           var num = res.num||0;
           if(num === 0 && _retries++ < 3){
             // Version 0 = AE not ready yet, retry
             setTimeout(_doCheck, 1000); return;
           }
-          S_aeVer.num      = num;
-          S_aeVer.major    = res.major||0;
-          S_aeVer.name     = res.name||"";
-          S_aeVer.sedSupport = !!(res.sedSupport || num >= 22);
-          S_aeVer.checked  = true;
-          applyAECompat();
-        }catch(e2){ S_aeVer.checked=true; applyAECompat(); }
+          _applyVersionResult(num, res.major||0, res.name||"", !!(res.sedSupport || num >= 22));
+        }catch(e2){ _fallbackVersionDetect(); }
       });
-    }catch(e){ S_aeVer.checked=true; applyAECompat(); }
+    }catch(e){ _fallbackVersionDetect(); }
   }
   // Delay first check by 500ms to let AE finish loading
   setTimeout(_doCheck, 500);
@@ -2056,6 +2336,9 @@ function applyAECompat(){
 }
 
 function _ready(){
+  // Auto-clean leftover thumbnail files from previous AE sessions
+  _cleanThumbTempOnStart();
+
   evalScript("getLayerName()",function(r){
     r=(r||"").replace(/^"|"$/g,""); if(r)$("layer-name").textContent=r;
   });
@@ -2067,22 +2350,52 @@ function _ready(){
   setTimeout(_checkUpdate, 2000);
 }
 
+function _cleanThumbTempOnStart(){
+  if(!window.cep || !window.cep.fs) return;
+  callHost("getTempFolderPath",[S.customTmpPath],function(res){
+    if(!res || !res.path) return;
+    var tmp = res.path.replace(/\\/g,"/").replace(/\/+$/, "");
+    // Delete all sed_ff_* and sed_thumb_cache files
+    try{
+      var dir = window.cep.fs.readdir(tmp);
+      if(dir && dir.data){
+        for(var di = 0; di < dir.data.length; di++){
+          var name = dir.data[di];
+          if(name.indexOf("sed_ff_") === 0 || name.indexOf("sed_thumb_cache") === 0 ||
+             name.indexOf("sed_results") === 0 || name.indexOf("sed_py_") === 0 ||
+             name.indexOf("sed_jobs") === 0 || name.indexOf("sed_batch") === 0){
+            window.cep.fs.deleteFileOrDirectory(tmp + "/" + name);
+          }
+        }
+      }
+    }catch(e){}
+  });
+}
+
 // Prevent panel going blank when other CEP panels are closed/opened.
 // CEP shares one Chromium renderer — other panels can disturb the DOM.
 function _initPanelVisibility(){
   // Ensure body and root are always visible
   document.body.style.visibility = "visible";
   document.body.style.display    = "block";
+  var _panelHidden = false;
 
   // CSInterface visibility events
   try{
     var cs = new CSInterface();
+    // Mark hidden when panel loses focus
+    cs.addEventListener("com.adobe.csxs.events.panelHidden", function(){
+      _panelHidden = true;
+    });
     // Re-render when panel regains focus
     cs.addEventListener("com.adobe.csxs.events.panelShown", function(){
       document.body.style.visibility = "visible";
       document.body.style.display    = "block";
-      // Re-inject thumbnails from memory if they were cleared
-      if(S.thumbDone > 0 && Object.keys(S.thumbs).length > 0){
+      _panelHidden = false;
+      // Rebuild grid+list if DOM was cleared, else just restore thumbs
+      if(S.scenes.length > 0 && !document.querySelector(".scene-card")){
+        _rebuildDisplay(true);
+      } else if(S.thumbDone > 0 && Object.keys(S.thumbs).length > 0){
         _restoreThumbsFromMemory();
       }
     });
@@ -2090,10 +2403,21 @@ function _initPanelVisibility(){
     document.addEventListener("visibilitychange", function(){
       if(document.visibilityState === "visible"){
         document.body.style.visibility = "visible";
-        // Restore thumbs if grid is empty but memory has data
-        if(S.thumbDone > 0){
+        _panelHidden = false;
+        if(S.scenes.length > 0 && !document.querySelector(".scene-card")){
+          _rebuildDisplay(true);
+        } else if(S.thumbDone > 0){
           setTimeout(_restoreThumbsFromMemory, 100);
         }
+      }
+    });
+    // pageshow — fires when the page is restored from bfcache (shared renderer reload)
+    window.addEventListener("pageshow", function(){
+      document.body.style.visibility = "visible";
+      document.body.style.display    = "block";
+      _panelHidden = false;
+      if(S.scenes.length > 0){
+        _rebuildDisplay(true);
       }
     });
   }catch(e){}
@@ -2105,6 +2429,10 @@ function _initPanelVisibility(){
       document.body.style.display    = "block";
       document.body.style.visibility = "visible";
     }
+    // If DOM was wiped but data exists, rebuild it
+    if(S.scenes.length > 0 && !document.querySelector(".scene-card") && !_panelHidden){
+      _rebuildDisplay(false);
+    }
   }, 2000);
 }
 
@@ -2112,21 +2440,24 @@ function _initPanelVisibility(){
 function _restoreThumbsFromMemory(){
   var keys = Object.keys(S.thumbs);
   if(!keys.length) return;
-  (function restoreOne(ki){
-    if(ki >= keys.length) return;
-    var idx    = parseInt(keys[ki]);
-    var dataURI = S.thumbs[idx];
-    if(dataURI){
+  var ri = 0;
+  function restoreBatch(){
+    if(ri >= keys.length) return;
+    var end = Math.min(ri + 100, keys.length);
+    for(; ri < end; ri++){
+      var idx = parseInt(keys[ri]);
+      var dataURI = S.thumbs[idx];
+      if(!dataURI) continue;
       var card = document.querySelector(".scene-card[data-idx='"+idx+"']");
-      if(card){
-        var wrap = card.querySelector(".card-img-wrap");
-        if(wrap && !wrap.querySelector("img")){
-          _injectThumbDirect(idx, dataURI, S.thumbPaths[idx]||"");
-        }
+      if(!card) continue;
+      var wrap = card.querySelector(".card-img-wrap");
+      if(wrap && !wrap.classList.contains("thumb-loaded")){
+        _injectThumbDirect(idx, dataURI, S.thumbPaths[idx]||"");
       }
     }
-    setTimeout(function(){ restoreOne(ki+1); }, 0);
-  })(0);
+    requestAnimationFrame(restoreBatch);
+  }
+  restoreBatch();
 }
 
 function _diagButtons(){
