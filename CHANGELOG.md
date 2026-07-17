@@ -2,6 +2,33 @@
 
 All notable changes to SED Panel will be documented here.
 
+## [3.2.0] — 2026-07-16
+
+### Added
+- Color theme matching heosan.web.app site palette (warm brown/tan, teal accent)
+- Tutorial stepper restyled to React Bits-style (numbered 1-10 circles, active dot, animated connectors)
+- Click spark particle effect on click (canvas-based, 8 sparks, 400ms)
+- Reset thumbnail button alongside refresh layer button
+- beforeunload handler to prevent panel close from closing After Effects
+- Export: capture comp ID at click time to avoid "Invalid composition" on 700+ scenes
+
+### Changed
+- Onboarding stepper: numbered circles with connector lines, clickable up to next step
+- Website URL updated from heosanweb.carrd.co to heosan.web.app
+
+### Removed
+- "Add Comp Markers" button and associated JSX/i18n code
+
+### Fixed
+- Export to Render Queue: Manual mode now skips Render Queue addition, sets correct Work Areas
+- workAreaDuration clamped to comp duration minus workAreaStart (floating point safety)
+- keepOnlyScenes reverted to v3.1 duplicate approach with layer.name naming
+
+### Compatibility
+- Adobe After Effects 2022 (v22.0) through 2026 (v26.0)
+- CSXS 6.0 runtime, manifest Host AEFT [13.0, 99.9]
+- Registry CSXS 4–13 for CEP debug mode
+
 ## [3.1.0] — 2026-07-10
 
 ### Added
@@ -13,10 +40,6 @@ All notable changes to SED Panel will be documented here.
 ### Changed
 - Keep Selected scenes now uses duplicate-remove approach instead of split-then-delete
 - Custom naming format: {name}_1 (bottom) to {name}_N (top)
-
-### Removed
-- readThumbDataURI() — logic inlined into acceptThumb
-- _calcSourceSec() — replaced by _calcSourceSecForScene()
 
 ### Compatibility
 - Adobe After Effects 2022 (v22.0) through 2026 (v26.0)
@@ -40,45 +63,6 @@ All notable changes to SED Panel will be documented here.
 ### Fixed
 - Thumbnail not stuck on scene 1-3 anymore
 - Cache miss detection and fallback to regeneration
-
-### Compatibility
-- Adobe After Effects 2022 (v22.0) through 2026 (v26.0)
-
-## [2.2.0] — 2026-07-03
-
-### Added
-- FFmpeg thumbnail pipeline for fast batch extraction
-- Python cv2 thumbnail fallback when FFmpeg unavailable
-- Thumbnail poller system with 45s timeout
-- Thumbnail progress modal with progress bar, count, ETA, cancel button
-- Merge adjacent scenes feature
-- Global error handler (window.onerror) catches uncaught JS exceptions
-- _jsLog() structured logging helper to AE ExtendScript console
-- Cancel flags (_thumbCancelled, _readCancelled) for safe abort
-- ETA display during thumbnail generation
-- New i18n strings: scene_count, scene_from_markers, read_cancelled, no_markers, ffmpeg_stalled
-
-### Changed
-- readThumbDataURI() now detects JPG vs PNG for correct MIME type
-- Thumbnail system rewritten to support FFmpeg/cv2/AE fallback chain
-
-### Compatibility
-- Adobe After Effects 2022 (v22.0) through 2026 (v26.0)
-
-## [2.1.0] — 2026-07-01
-
-### Added
-- AE 2025 (v25) compatibility verified
-- Scene grid column switcher (2/3/4/5 columns)
-- Scene card timecodes and thumbnails inline
-- Better error handling for missing temp folder
-
-### Changed
-- Thumbnail grid layout improvements
-- install.bat: broader AE launch path search (2020–2026)
-
-### Fixed
-- Panel visibility on AE 2025 in some configurations
 
 ### Compatibility
 - Adobe After Effects 2022 (v22.0) through 2026 (v26.0)

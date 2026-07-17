@@ -1,5 +1,5 @@
 // ============================================================
-// host.jsx  -  SED Panel CEP  v3.1  (Multi-Layer)
+// host.jsx  -  SED Panel CEP  v3.2  (Multi-Layer)
 
 // ══════════════════════════════════════════════════════════
 // AE VERSION DETECTION — called on panel startup
@@ -214,14 +214,20 @@ function _waitForOut(f, ms){
 // outFile.fsName must use forward slashes (ExtendScript requirement on Windows)
 function _captureSaveFrame(comp, snapSec, outFile){
     try{
-        // Clamp to valid comp range
         var t = Math.max(0, Math.min(snapSec, comp.duration - (1/comp.frameRate)));
-        // Set CTI (Current Time Indicator) to target frame
         comp.time = t;
-        // Ensure outFile path uses forward slashes
         var normPath = outFile.fsName.replace(/\\/g, "/");
         var normFile = new File(normPath);
-        comp.saveFrameToPng(t, normFile);
+        // v10.0: quarter res = ~16x faster saveFrameToPng
+        var savedRes = comp.resolutionFactor;
+        comp.resolutionFactor = [0.25, 0.25];
+        try{
+            comp.saveFrameToPng(t, normFile);
+        }catch(e){
+            comp.resolutionFactor = savedRes;
+            throw e;
+        }
+        comp.resolutionFactor = savedRes;
         return _waitForOut(normFile, 3500);
     }catch(e){}
     return null;
@@ -240,6 +246,8 @@ function _captureViaRQ(comp, snapSec, outFile){
         // Duplicate the comp
         miniComp=comp.duplicate();
         miniComp.name="__SED_THUMB_TMP__";
+        // v10.0: quarter res = ~16x faster RQ render
+        miniComp.resolutionFactor=[0.25,0.25];
 
         // Trim to exactly 1 frame at the target time
         // Set duration to 1 frame (avoids timeSpan warning)
@@ -294,8 +302,6 @@ function _captureViaRQ(comp, snapSec, outFile){
     }
 }
 
-// Strategy 3: Read from source footage directly (fastest, no render needed)
-// Works when layer source is a video file with accessible frames
 // ── Main capture function ─────────────────────────────────
 function _captureFrame(comp, snapSec, outFile){
     var result=_captureSaveFrame(comp,snapSec,outFile);
@@ -304,6 +310,20 @@ function _captureFrame(comp, snapSec, outFile){
     result=_captureViaRQ(comp,snapSec,outFile);
     if(result) return result;
     return null;
+}
+
+function _captureFrameLazy(comp, snapSec, outFile){
+    // v10.0: No duplicate, no CTI move, no resolution change.
+    // comp.saveFrameToPng(time, file) renders at specified time regardless of CTI.
+    try{
+        var t = Math.max(0, Math.min(snapSec, comp.duration - (1/comp.frameRate)));
+        var normPath = outFile.fsName.replace(/\\/g, "/");
+        var normFile = new File(normPath);
+        if(normFile.exists) try{ normFile.remove(); }catch(e){}
+        comp.saveFrameToPng(t, normFile);
+        return _waitForOut(normFile, 5000);
+    }catch(e){}
+    return _captureViaRQ(comp, snapSec, outFile);
 }
 
 // ── captureSceneFrames ────────────────────────────────────
@@ -340,7 +360,9 @@ function captureSceneFrames(startSec, durSec, sceneIdx, customPath){
     if(outF.exists){ try{ outF.remove(); }catch(e1){} }
 
     // Use _captureFrame: Strategy 1 (saveFrameToPng) → Strategy 2 (RQ fallback)
-    var found = _captureFrame(comp, snapSec, outF);
+    // v10.0: 5th param lazy=true → saveFrameToPng without CTI move (no viewer jump)
+    var lazy = (arguments.length >= 5 && arguments[4] === true);
+    var found = lazy ? _captureFrameLazy(comp, snapSec, outF) : _captureFrame(comp, snapSec, outF);
 
     try{ comp.time=saved; }catch(e){}
 
@@ -660,26 +682,21 @@ function keepOnlyScenes(scenesJson,allScenesJson){
     try{ keepS=JSON.parse(scenesJson); allS=JSON.parse(allScenesJson); }
     catch(e){ return JSON.stringify({ok:false,msg:"Parse error"}); }
     if(!keepS||!keepS.length) return JSON.stringify({ok:false,msg:"No scenes to keep."});
-    
+
     var fps = comp.frameRate;
     app.beginUndoGroup("SED: Keep Only");
     try{
         // Group kept scenes by layerIndex
         var layerGroups = {};
-        var hasLayerIndex = false;
         for(var kg = 0; kg < keepS.length; kg++){
             var ks = keepS[kg];
             var li = ks.layerIndex || 0;
             if(!layerGroups[li]) layerGroups[li] = [];
             layerGroups[li].push(ks);
-            if(li > 0) hasLayerIndex = true;
         }
 
-        // Collect keys manually (ExtendScript has no Object.keys)
         var layerKeys = [];
         for(var lk in layerGroups){ if(layerGroups.hasOwnProperty(lk)) layerKeys.push(lk); }
-
-        // Process layers from highest index to lowest so removals don't shift indices
         layerKeys.sort(function(a,b){ return parseInt(b) - parseInt(a); });
 
         for(var lg = 0; lg < layerKeys.length; lg++){
@@ -688,16 +705,18 @@ function keepOnlyScenes(scenesJson,allScenesJson){
             var layerScenes = layerGroups[lidx];
 
             if(lidx > 0 && lidx <= comp.numLayers){
-                // Known layerIndex: find the actual layer
                 layer = comp.layer(lidx);
                 if(!layer || !layer.property("Marker")) continue;
             } else if(lidx === 0){
-                // Backward compat: scenes without layerIndex
                 layer = _getActiveLayer(comp);
                 if(!layer) continue;
             }
 
-            // Remove ALL markers from this layer first
+            var srcName = layer.name;
+            var dotIdx = srcName.lastIndexOf('.');
+            if(dotIdx > 0) srcName = srcName.substring(0, dotIdx);
+
+            // Hapus semua marker
             var origMarkers = layer.property("Marker");
             if(origMarkers){
                 while(origMarkers.numKeys > 0){
@@ -705,7 +724,7 @@ function keepOnlyScenes(scenesJson,allScenesJson){
                 }
             }
 
-            // Duplicate for each kept scene (reverse order = top to bottom)
+            // Duplicate dari terakhir ke pertama (reverse order)
             for(var k2 = layerScenes.length - 1; k2 >= 0; k2--){
                 var sc = layerScenes[k2];
                 var dup = layer.duplicate();
@@ -714,12 +733,11 @@ function keepOnlyScenes(scenesJson,allScenesJson){
                 if(st < dup.startTime) st = dup.startTime;
                 dup.inPoint  = st;
                 dup.outPoint = ed;
-                dup.name = dup.source ? dup.source.name : dup.name;
+                dup.name = srcName + '_' + (k2 + 1);
                 try{
                     var dupMarkers = dup.property("Marker");
                     if(dupMarkers){
-                        var mv = new MarkerValue("" + sc.index);
-                        dupMarkers.setValueAtTime(st, mv);
+                        dupMarkers.setValueAtTime(st, new MarkerValue(""));
                     }
                 }catch(em){}
             }
@@ -728,23 +746,6 @@ function keepOnlyScenes(scenesJson,allScenesJson){
     }catch(e){ app.endUndoGroup(); return JSON.stringify({ok:false,msg:"Failed: "+e.toString()}); }
     app.endUndoGroup();
     return JSON.stringify({ok:true,kept:keepS.length,deleted:allS.length-keepS.length});
-}
-
-function addCompMarkers(scenesJson){
-    var comp=app.project.activeItem;
-    if(!comp||!(comp instanceof CompItem)) return JSON.stringify({ok:false,msg:"Invalid composition."});
-    var scenes; try{ scenes=JSON.parse(scenesJson); }catch(e){ return JSON.stringify({ok:false,msg:"Parse error"}); }
-    var markers=comp.property("Marker");
-    app.beginUndoGroup("SED: Comp Markers");
-    try{
-        for(var i=0;i<scenes.length;i++){
-            var mv=new MarkerValue(""+scenes[i].index);
-            mv.duration=scenes[i].dur_sec;
-            markers.setValueAtTime(scenes[i].start_sec,mv);
-        }
-    }catch(e){ app.endUndoGroup(); return JSON.stringify({ok:false,msg:"Failed: "+e.toString()}); }
-    app.endUndoGroup();
-    return JSON.stringify({ok:true,count:scenes.length});
 }
 
 function clearLayerMarkers(){
@@ -1214,8 +1215,16 @@ function _mergeLayers(comp, groups, allGroupScenes, mergedCount, fps){
     });
 }
 
-function exportToRenderQueue(scenesJson){
+function getActiveCompId(){
     var comp=app.project.activeItem;
+    if(!comp||!(comp instanceof CompItem)) return JSON.stringify({ok:false});
+    return JSON.stringify({ok:true,id:comp.id});
+}
+
+function exportToRenderQueue(scenesJson, skipQueue, compId){
+    var comp;
+    if(compId) try{ comp=app.project.item(compId); }catch(e){ comp=null; }
+    if(!comp||!(comp instanceof CompItem)) comp=app.project.activeItem;
     if(!comp||!(comp instanceof CompItem)) return JSON.stringify({ok:false,msg:"Invalid composition."});
     var scenes; try{ scenes=JSON.parse(scenesJson); }catch(e){ return JSON.stringify({ok:false,msg:"Parse error"}); }
     if(!scenes||!scenes.length) return JSON.stringify({ok:false,msg:"No scenes selected."});
@@ -1225,14 +1234,18 @@ function exportToRenderQueue(scenesJson){
         for(var s=0;s<scenes.length;s++){
             var sc=scenes[s],dup=comp.duplicate();
             dup.name=comp.name+"_Sc"+_pad3(sc.index);
-            dup.workAreaStart=sc.start_sec; dup.workAreaDuration=sc.dur_sec;
-            var rq=app.project.renderQueue.items.add(dup);
-            rq.timeSpanStart=sc.start_sec; rq.timeSpanDuration=sc.dur_sec;
+            dup.workAreaStart=sc.start_sec;
+            var maxDur = dup.duration - dup.workAreaStart;
+            dup.workAreaDuration = Math.min(sc.dur_sec, Math.max(maxDur, 0));
+            if(!skipQueue){
+                var rq=app.project.renderQueue.items.add(dup);
+                rq.timeSpanStart=sc.start_sec; rq.timeSpanDuration=Math.min(sc.dur_sec, Math.max(maxDur, 0));
+            }
             added++;
         }
     }catch(e){ app.endUndoGroup(); return JSON.stringify({ok:false,msg:"Export failed: "+e.toString()}); }
     app.endUndoGroup();
-    return JSON.stringify({ok:true,count:added});
+    return JSON.stringify({ok:true,count:added,skipQueue:!!skipQueue});
 }
 
 function cleanTempFolder(customPath){
@@ -1240,15 +1253,11 @@ function cleanTempFolder(customPath){
     var files=tmp.getFiles("*.png");
     var n=0;
     for(var f=0;f<files.length;f++){ try{ files[f].remove(); n++; }catch(e){} }
-    // Also clean JPGs produced by FFmpeg path
+    // Also clean JPGs produced by thumb generation
     var jpegs=tmp.getFiles("*.jpg");
     for(var j=0;j<jpegs.length;j++){ try{ jpegs[j].remove(); n++; }catch(e){} }
     return JSON.stringify({ok:true,deleted:n});
 }
-
-// ══════════════════════════════════════════════════════════
-// FFMPEG SUPPORT
-// ══════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════
 // LOGGING — writes to CEP extension folder / logs /
@@ -1292,7 +1301,7 @@ function _getLogFolder(){
 }
 
 function _writeLog(category, msg){
-    // category: "thumb" | "ffmpeg" | "ae" | "diag"
+    // category: "thumb" | "ae" | "diag"
     try{
         var lf = _getLogFolder();
         if(!lf) return;
@@ -1311,70 +1320,7 @@ function _writeLog(category, msg){
     }catch(e){}
 }
 
-// findFFmpeg() — 3-tier detection
-// Tier 1: ffmpeg in system PATH  (where ffmpeg on Windows)
-// Tier 2: ffmpeg.exe bundled in plugin folder ./ffmpeg/ffmpeg.exe
-// Tier 3: return null → caller falls back to saveFrameToPng
-function findFFmpeg(){
-    var log = [];
-
-    // Tier 1: check PATH
-    try{
-        var r1 = system.callSystem("where ffmpeg");
-        log.push("PATH search result: " + (r1||"(empty)").replace(/[\r\n]+/g," ").substring(0,200));
-        if(r1 && r1.indexOf("ffmpeg") >= 0){
-            var line = r1.replace(/\r/g,"").split("\n")[0].replace(/^\s+|\s+$/g,"");
-            if(line){
-                var f1 = new File(line);
-                if(f1.exists){
-                    _writeLog("ffmpeg","[FOUND] Tier 1 (PATH): " + line);
-                    return JSON.stringify({ok:true, tier:1, path:line, log:log});
-                }
-                log.push("PATH hit but file not found: " + line);
-            }
-        }
-    }catch(e1){ log.push("PATH check error: " + e1.toString()); }
-
-    // Tier 2: bundled — resolve plugin root from $.fileName
-    // $.fileName = full path of this script = …/com.heosan.sedpanel/jsx/host.jsx
-    var pluginRootPath = "";
-    try{
-        var scriptFile = new File($.fileName);
-        var jsxFolder  = scriptFile.parent;         // …/com.heosan.sedpanel/jsx
-        var pluginRoot = jsxFolder.parent;          // …/com.heosan.sedpanel
-        pluginRootPath = pluginRoot.fullName;
-        log.push("$.fileName: " + $.fileName);
-        log.push("Plugin root (from $.fileName): " + pluginRootPath);
-        var bundled = new File(pluginRootPath + "/ffmpeg/ffmpeg.exe");
-        log.push("Bundled path tried: " + bundled.fsName + " | exists: " + bundled.exists);
-        if(bundled.exists){
-            _writeLog("ffmpeg","[FOUND] Tier 2 (bundled): " + bundled.fsName);
-            return JSON.stringify({ok:true, tier:2, path:bundled.fsName, log:log});
-        }
-    }catch(e2){ log.push("$.fileName tier2 error: " + e2.toString()); }
-
-    // Tier 2b: try common CEP extension install path as additional fallback
-    try{
-        var envAppData = system.getenv("APPDATA");
-        if(envAppData){
-            var cepPath = envAppData + "\\Adobe\\CEP\\extensions\\com.heosan.sedpanel\\ffmpeg\\ffmpeg.exe";
-            var f2b = new File(cepPath);
-            log.push("Tier 2b CEP path: " + f2b.fsName + " | exists: " + f2b.exists);
-            if(f2b.exists){
-                _writeLog("ffmpeg","[FOUND] Tier 2b (CEP install): " + f2b.fsName);
-                return JSON.stringify({ok:true, tier:2, path:f2b.fsName, log:log});
-            }
-        }
-    }catch(e2b){ log.push("Tier 2b error: " + e2b.toString()); }
-
-    // Tier 3: not found
-    _writeLog("ffmpeg","[NOT FOUND] All tiers exhausted. Log: " + log.join(" | "));
-    return JSON.stringify({ok:false, tier:0, path:"", log:log});
-}
-
 // getSourceFileInfo() — ambil info source footage dari layer aktif
-// Returns: sourcePath, sourceStartSec, layerStartSec, fps, duration
-// Caller (JS) uses ini untuk menghitung timecode yang benar untuk FFmpeg
 function getSourceFileInfo(){
     var comp=app.project.activeItem;
     if(!comp||!(comp instanceof CompItem))
@@ -1414,12 +1360,12 @@ function getSourceFileInfo(){
         width:       comp.width,
         height:      comp.height
     };
-    _writeLog("ffmpeg","[SOURCE] path="+srcFile.fsName+" layerStart="+layer.startTime+
+    _writeLog("thumb","[SOURCE] path="+srcFile.fsName+" layerStart="+layer.startTime+
         " srcStart="+sourceStartSec+" fps="+fps+" hasVideo="+src.hasVideo);
     return JSON.stringify(result);
 }
 
-// getTempFolderPath() — return temp folder path for JS to use in FFmpeg output
+// getTempFolderPath() — return temp folder path for JS to use in thumb output
 // getAllSourceFilesInfo() — return source info for ALL footage layers
 // Used by multi-layer thumbnail pipeline to get per-layer source paths
 function getAllSourceFilesInfo(){
@@ -1473,7 +1419,7 @@ function getSystemTempPath(){
 }
 
 // getThumbDiagnostics() — comprehensive thumb pipeline diagnostics
-// Returns detailed info about AE, temp folder, source file, ffmpeg
+// Returns detailed info about AE, temp folder, source file
 function getThumbDiagnostics(customPath){
     var result = {
         ok: true,
@@ -1483,8 +1429,6 @@ function getThumbDiagnostics(customPath){
         tempFolderWritable: false,
         sourceFile: "",
         sourceFileExists: false,
-        ffmpegPath: "",
-        ffmpegExists: false,
         logFolder: "",
         compInfo: "",
         errors: []
@@ -1529,15 +1473,6 @@ function getThumbDiagnostics(customPath){
         }
     }catch(e){ result.errors.push("sourceFile: "+e); }
 
-    // FFmpeg
-    try{
-        var ffRes = JSON.parse(findFFmpeg());
-        result.ffmpegPath = ffRes.path || "";
-        result.ffmpegTier = ffRes.tier || 0;
-        result.ffmpegExists = !!(ffRes.ok && ffRes.path);
-        result.ffmpegLog = ffRes.log || [];
-    }catch(e){ result.errors.push("ffmpeg: "+e); }
-
     // Log folder
     try{
         var lf = _getLogFolder();
@@ -1549,36 +1484,9 @@ function getThumbDiagnostics(customPath){
 }
 
 // ══════════════════════════════════════════════════════════
-// FFMPEG FAST THUMBNAIL ENGINE
-//
-// KEY INSIGHT: Use ONE FFmpeg process with select= filter to
-// extract ALL frames in a single video read pass.
-// No per-frame process startup overhead.
-//
-// select='eq(n,F1)+eq(n,F2)+...+eq(n,FN)' extracts exactly
-// the frames we need in one pass.
-//
-// Execution is NON-BLOCKING:
-//   1. JSX writes bat file and launches via VBScript (fire-and-forget)
-//   2. JSX returns IMMEDIATELY with list of expected output paths
-//   3. JS polls cep.fs.stat on each path in background (setInterval)
-//   4. Each thumbnail is injected to DOM the moment its file appears
-//   Result: thumbnails appear one-by-one in real-time, no freezing
+// CMD RUNNER (VBScript-based async process launcher)
 // ══════════════════════════════════════════════════════════
 
-// _runCmd(cmd, waitForFinish)
-// Execute cmd string via VBScript hidden window.
-// waitForFinish=true  → synchronous (blocks JSX until done) — use ONLY for
-//                        short, fast operations. NEVER use for FFmpeg/Python
-//                        batches with many scenes — system.callSystem() blocks
-//                        the entire ExtendScript engine (and AE's UI thread)
-//                        until the launched process tree fully exits.
-// waitForFinish=false → true async fire-and-forget. We launch wscript.exe
-//                        itself via "start" so system.callSystem() returns
-//                        the instant the launcher process spawns — it does
-//                        NOT wait for wscript.exe (or the cmd it spawns) to
-//                        finish. This is what actually prevents AE freezing
-//                        for long-running batches (v8.3 fix).
 function _runCmd(cmd, waitForFinish){
     var tmpDir  = Folder.temp.fsName.replace(/\\/g, "/");
     var vbsPath = tmpDir + "/sed_run_" + Math.floor(Math.random()*1000000) + ".vbs";
@@ -1591,8 +1499,6 @@ function _runCmd(cmd, waitForFinish){
             'CreateObject("WScript.Shell")' +
             '.Run "cmd /C " & Chr(34) & "' + cmd + '" & Chr(34), 0, True';
     } else {
-        // Async case: the vbs deletes itself after launching, so a leftover
-        // wscript.exe process never leaves stray temp files behind.
         vbsContent =
             'CreateObject("WScript.Shell")' +
             '.Run "cmd /C " & Chr(34) & "' + cmd + '" & Chr(34), 0, False' + "\r\n" +
@@ -1605,7 +1511,6 @@ function _runCmd(cmd, waitForFinish){
     }catch(e){}
 
     if(!ok){
-        // VBScript file could not be written — fallback: run directly via cmd
         try{
             if(waitForFinish) system.callSystem('cmd /C "' + cmd + '"');
             else system.callSystem('cmd /C start "" /B cmd /C "' + cmd + '"');
@@ -1615,210 +1520,23 @@ function _runCmd(cmd, waitForFinish){
 
     try{
         if(waitForFinish){
-            // Synchronous: caller explicitly wants to wait (short ops only)
             system.callSystem('wscript.exe "' + vbsPath + '"');
             try{ vbsFile.remove(); }catch(e2){}
         } else {
-            // TRUE async: "start" detaches wscript.exe itself from this
-            // process tree. callSystem() returns as soon as the new process
-            // is spawned — it does not wait for wscript.exe to exit, let
-            // alone the FFmpeg/Python processes it launches. This is what
-            // actually keeps AE responsive for long-running batches (v8.3 fix).
             system.callSystem('cmd /C start "" /B wscript.exe "' + vbsPath + '"');
         }
-    }catch(e){ _writeLog("ffmpeg","[CMD ERR] "+e.toString()); }
+    }catch(e){ _writeLog("thumb","[CMD ERR] "+e.toString()); }
 }
 
-// _launchHidden(cmd) — backward compat alias for async launch
 function _launchHidden(cmd){ _runCmd(cmd, false); }
 
 
 
-
-// launchFFmpegAllAsync(batchJson, ffmpegPath)
-// PARALLEL approach: one bat file with all FFmpeg commands using "start /B"
-// All processes run simultaneously — much faster than sequential.
-// Returns immediately (fire-and-forget via VBScript).
-// JS polls each output path independently.
-//
-// Key differences from ffconcat approach:
-// - Each FFmpeg uses -ss for accurate seek (no GOP issues)
-// - All run in parallel (start /B = background, no window)
-// - Stale files deleted before launch to avoid poller false-positives
-// - Output paths are per-scene filenames (no %04d needed)
-// launchFFmpegAllAsync(batchJson, ffmpegPath)
-// TRUE async launch — fire-and-forget, returns IMMEDIATELY.
-// v8.3 FIX: previous versions called _runCmd(batPath, true) which BLOCKS
-// the ExtendScript engine (and therefore the entire AE UI) until every
-// FFmpeg process finishes — for 300-500 scenes this froze AE for the
-// full duration of generation. Root cause: system.callSystem() used by
-// _runCmd is always synchronous from ExtendScript's point of view; the
-// "wait" flag only controls whether wscript.exe waits for the *child*
-// cmd process, but wscript.exe itself is still awaited by callSystem().
-// Fix: ALWAYS launch with waitForFinish=false. We no longer verify
-// results here — JS polls each output path on disk via _startPoller(),
-// which is fully async (setInterval) and never touches AE's thread.
-function launchFFmpegAllAsync(batchJson, ffmpegPath){
-    var batch;
-    try{ batch = JSON.parse(batchJson); }
-    catch(e){ return JSON.stringify({ok:false, msg:"Parse error: "+e.toString()}); }
-    if(!batch || !batch.length)
-        return JSON.stringify({ok:false, msg:"Empty batch"});
-
-    var firstOut = batch[0].outPath;
-    var tmpDir   = firstOut.substring(0, firstOut.lastIndexOf("\\"));
-
-    // Delete any stale output files first
-    // This prevents poller from picking up files from a previous run
-    for(var d = 0; d < batch.length; d++){
-        try{
-            var stale = new File(batch[d].outPath);
-            if(stale.exists) stale.remove();
-        }catch(e){}
-    }
-
-    // Build bat file with parallel FFmpeg calls using "start /B"
-    // start /B = launch in background (no new window, non-blocking)
-    // All FFmpeg processes run concurrently
-    // MAX_PARALLEL limits concurrent processes to avoid disk thrash
-    var MAX_PARALLEL = 8;
-    var batLines = ["@echo off"];
-
-    for(var i = 0; i < batch.length; i++){
-        var item = batch[i];
-        var ffLine = 'start /B "" ' +
-            '"' + ffmpegPath + '"' +
-            ' -ss ' + item.seekSec.toFixed(4) +
-            ' -i "' + item.srcPath + '"' +
-            ' -vf scale=320:-2 -frames:v 1 -q:v 3 -loglevel error -y' +
-            ' "' + item.outPath + '"';
-        batLines.push(ffLine);
-
-        // After every MAX_PARALLEL commands, brief stagger before launching
-        // more — prevents overwhelming disk I/O. This delay happens inside
-        // the detached bat process itself, NOT inside AE/ExtendScript,
-        // so it never blocks the host application.
-        if((i + 1) % MAX_PARALLEL === 0 && i + 1 < batch.length){
-            batLines.push("timeout /t 1 /nobreak >nul");
-        }
-    }
-
-    var batPath = tmpDir + "\\sed_ff_all.bat";
-    var batFile = new File(batPath);
-    batFile.encoding = "UTF8";
-    if(!batFile.open("w")){
-        return JSON.stringify({ok:false, msg:"Cannot write bat file"});
-    }
-    batFile.write(batLines.join("\r\n"));
-    batFile.close();
-    _writeLog("ffmpeg","[PARALLEL-ASYNC] scenes="+batch.length+
-        " max_parallel="+MAX_PARALLEL+" bat="+batPath);
-
-    // Build expected paths (using exact per-scene output paths)
-    var expectedPaths = [];
-    for(var j = 0; j < batch.length; j++){
-        expectedPaths.push({idx: batch[j].idx, outPath: batch[j].outPath});
-    }
-
-    // Fire-and-forget: launch the bat WITHOUT waiting. Returns instantly —
-    // AE stays fully responsive while FFmpeg processes run in the background.
-    // The bat file deletes itself at the end so we don't need to clean it up here.
-    var selfDeleteCmd = batPath + " & del /f /q \"" + batPath + "\"";
-    _runCmd(selfDeleteCmd, false);
-
-    _writeLog("ffmpeg","[LAUNCHED] "+batch.length+" scene(s), async, non-blocking");
-
-    // Return expected paths immediately — JS will poll disk for completion.
-    // This small JSON always fits well under the evalScript bridge limit
-    // since it only contains {idx, outPath} pairs (no base64/image data).
-    return JSON.stringify({ok:true, async:true, expectedPaths:expectedPaths});
-}
-// launchFFmpegPerFrame(batchJson, ffmpegPath)
-// Fallback: one FFmpeg per frame in a single bat, fire-and-forget.
-// Returns expected paths immediately for JS polling.
-function launchFFmpegPerFrame(batchJson, ffmpegPath){
-    var batch;
-    try{ batch = JSON.parse(batchJson); }
-    catch(e){ return JSON.stringify({ok:false, msg:"Parse error: "+e.toString()}); }
-    if(!batch || !batch.length)
-        return JSON.stringify({ok:false, msg:"Empty batch"});
-
-    var firstOut = batch[0].outPath;
-    var tmpDir   = firstOut.substring(0, firstOut.lastIndexOf("\\"));
-    var batPath  = tmpDir + "\\sed_ff_per.bat";
-    var batFile  = new File(batPath);
-    batFile.encoding = "UTF8";
-    if(!batFile.open("w")){
-        return JSON.stringify({ok:false, msg:"Cannot write bat file"});
-    }
-
-    var lines = ["@echo off"];
-    var expectedPaths = [];
-    for(var i = 0; i < batch.length; i++){
-        var item = batch[i];
-        lines.push('"' + ffmpegPath + '"' +
-            ' -ss ' + item.seekSec.toFixed(4) +
-            ' -i "' + item.srcPath + '"' +
-            ' -vf scale=320:-2 -frames:v 1 -q:v 3 -loglevel error -y' +
-            ' "' + item.outPath + '"');
-        expectedPaths.push({idx: item.idx, outPath: item.outPath});
-    }
-    batFile.write(lines.join("\r\n"));
-    batFile.close();
-    _writeLog("ffmpeg","[PER-FRAME] scenes="+batch.length+" bat="+batPath);
-
-    _launchHidden(batPath);
-
-    return JSON.stringify({
-        ok:            true,
-        async:         true,
-        expectedPaths: expectedPaths,
-        batPath:       batPath
-    });
-}
-
-// ══════════════════════════════════════════════════════════
-// FILE-BASED BRIDGE FUNCTIONS
-// Pass data via disk files instead of evalScript strings.
-// Avoids ALL escaping issues with Windows paths in JSON.
-// ══════════════════════════════════════════════════════════
-
-// runThumbGenPyFromFile(batchFilePath, pythonExe)
-// Reads batch JSON from file, runs Python, returns results path
-function runThumbGenPyFromFile(batchFilePath, pythonExe){
-    // Read batch from file
-    var batchFile = new File(batchFilePath);
-    if(!batchFile.exists)
-        return JSON.stringify({ok:false, msg:"Batch file not found: "+batchFilePath});
-    batchFile.encoding = "UTF8";
-    batchFile.open("r");
-    var batchJson = batchFile.read();
-    batchFile.close();
-
-    // Delegate to runThumbGenPy with the JSON content
-    return runThumbGenPy(batchJson, pythonExe);
-}
-
-// launchFFmpegFromFile(batchFilePath, ffmpegPath)
-// Reads batch JSON from file, launches FFmpeg, returns results path
-function launchFFmpegFromFile(batchFilePath, ffmpegPath){
-    var batchFile = new File(batchFilePath);
-    if(!batchFile.exists)
-        return JSON.stringify({ok:false, msg:"Batch file not found: "+batchFilePath});
-    batchFile.encoding = "UTF8";
-    batchFile.open("r");
-    var batchJson = batchFile.read();
-    batchFile.close();
-    try{ batchFile.remove(); }catch(e){}
-
-    return launchFFmpegAllAsync(batchJson, ffmpegPath);
-}
-
 // ══════════════════════════════════════════════════════════
 // PYTHON THUMBNAIL RUNNER
-// Uses cv2.VideoCapture (single process, no per-frame FFmpeg startup).
-// ~5-10x faster than FFmpeg bat for large scene counts.
-// Falls back to FFmpeg if Python/cv2 not available.
+// Uses cv2.VideoCapture (single process, no per-frame startup overhead).
+// ~5-10x faster than bat-based approaches for large scene counts.
+// Falls back to AE's saveFrameToPng if Python/cv2 not available.
 // ══════════════════════════════════════════════════════════
 
 // findPython() — find Python executable on Windows
@@ -1834,7 +1552,7 @@ function findPython(){
                     // Verify it actually works
                     var ver = system.callSystem('"' + line + '" --version');
                     if(ver && ver.indexOf("Python") >= 0){
-                        _writeLog("ffmpeg","[PYTHON] found: "+line+" ver="+ver.replace(/[\r\n]/g,""));
+                        _writeLog("thumb","[PYTHON] found: "+line+" ver="+ver.replace(/[\r\n]/g,""));
                         return JSON.stringify({ok:true, path:line});
                     }
                 }
@@ -1857,12 +1575,12 @@ function findPython(){
         try{
             var pf = new File(winPaths[p]);
             if(pf.exists){
-                _writeLog("ffmpeg","[PYTHON] found at: "+pf.fsName);
+                _writeLog("thumb","[PYTHON] found at: "+pf.fsName);
                 return JSON.stringify({ok:true, path:pf.fsName});
             }
         }catch(e){}
     }
-    _writeLog("ffmpeg","[PYTHON] not found");
+    _writeLog("thumb","[PYTHON] not found");
     return JSON.stringify({ok:false, path:""});
 }
 
@@ -1907,7 +1625,7 @@ function runThumbGenPy(batchJson, pythonExe){
     var jobsFile = new File(jobsPath);
     jobsFile.encoding = "UTF8";
     if(!jobsFile.open("w")){
-        _writeLog("ffmpeg","[PY ERR] Cannot write jobs file: "+jobsPath);
+        _writeLog("thumb","[PY ERR] Cannot write jobs file: "+jobsPath);
         return JSON.stringify({ok:false, msg:"Cannot write jobs file"});
     }
     jobsFile.write(JSON.stringify(jobsData));
@@ -1917,9 +1635,9 @@ function runThumbGenPy(batchJson, pythonExe){
     var scriptFile  = new File($.fileName);
     var pluginRoot  = scriptFile.parent.parent;
     var thumbGenPy  = new File(pluginRoot.fullName + "/thumb_gen.py");
-    _writeLog("ffmpeg","[PY SEARCH] $.fileName="+$.fileName);
-    _writeLog("ffmpeg","[PY SEARCH] pluginRoot="+pluginRoot.fullName);
-    _writeLog("ffmpeg","[PY SEARCH] thumb_gen.py="+thumbGenPy.fsName+" exists="+thumbGenPy.exists);
+    _writeLog("thumb","[PY SEARCH] $.fileName="+$.fileName);
+    _writeLog("thumb","[PY SEARCH] pluginRoot="+pluginRoot.fullName);
+    _writeLog("thumb","[PY SEARCH] thumb_gen.py="+thumbGenPy.fsName+" exists="+thumbGenPy.exists);
 
     // Fallback: try CEP install path via APPDATA
     if(!thumbGenPy.exists){
@@ -1930,15 +1648,15 @@ function runThumbGenPy(batchJson, pythonExe){
                     appdata.replace(/\\/g,"/") +
                     "/Adobe/CEP/extensions/com.heosan.sedpanel/thumb_gen.py"
                 );
-                _writeLog("ffmpeg","[PY SEARCH] CEP path="+cepPy.fsName+" exists="+cepPy.exists);
+                _writeLog("thumb","[PY SEARCH] CEP path="+cepPy.fsName+" exists="+cepPy.exists);
                 if(cepPy.exists) thumbGenPy = cepPy;
             }
-        }catch(e){ _writeLog("ffmpeg","[PY SEARCH] APPDATA err: "+e); }
+        }catch(e){ _writeLog("thumb","[PY SEARCH] APPDATA err: "+e); }
     }
 
     if(!thumbGenPy.exists){
         try{ jobsFile.remove(); }catch(e){}
-        _writeLog("ffmpeg","[PY ERR] thumb_gen.py not found anywhere");
+        _writeLog("thumb","[PY ERR] thumb_gen.py not found anywhere");
         return JSON.stringify({ok:false, msg:"thumb_gen.py not found at: "+thumbGenPy.fsName});
     }
 
@@ -1973,12 +1691,12 @@ function runThumbGenPy(batchJson, pythonExe){
         "echo done > " + dq + donePath + dq + nl +
         "del /f /q " + dq + batPath + dq + nl;
 
-    _writeLog("ffmpeg","[PY RUN-ASYNC] batch="+batch.length+
+    _writeLog("thumb","[PY RUN-ASYNC] batch="+batch.length+
         " python="+pythonExe+" script="+thumbGenPy.fsName);
 
     if(!batFile.open("w")){
         try{ jobsFile.remove(); }catch(e){}
-        _writeLog("ffmpeg","[PY ERR] Cannot write bat: "+batPath);
+        _writeLog("thumb","[PY ERR] Cannot write bat: "+batPath);
         return JSON.stringify({ok:false, msg:"Cannot write bat file"});
     }
     batFile.write(batContent);
@@ -2000,11 +1718,11 @@ function runThumbGenPy(batchJson, pythonExe){
         // Python processes scenes. Python is fully detached in its own process.
         system.callSystem('cscript.exe //Nologo //B "' + vbsPath + '"');
     }catch(le){
-        _writeLog("ffmpeg","[PY VBS FALLBACK] "+le);
+        _writeLog("thumb","[PY VBS FALLBACK] "+le);
         _runCmd(batPath, false);
     }
 
-    _writeLog("ffmpeg","[PY LAUNCHED] async, non-blocking, donePath="+donePath);
+    _writeLog("thumb","[PY LAUNCHED] async, non-blocking, donePath="+donePath);
 
     // Tell JS where to poll. jobsFile cleanup is deferred to the bat's own
     // lifetime since Python needs to read it after we return.
@@ -2018,20 +1736,15 @@ function runThumbGenPy(batchJson, pythonExe){
         expectedCount: batch.length
     });
     }catch(e){
-        _writeLog("ffmpeg","[PY RUN THROW] "+e.toString()+" line="+(e.line||0));
+        _writeLog("thumb","[PY RUN THROW] "+e.toString()+" line="+(e.line||0));
         try{ if(jobsFile) jobsFile.remove(); }catch(ee){}
         return JSON.stringify({ok:false, msg:"runThumbGenPy error: "+e.toString(), line:e.line||0});
     }
 }
 
 
-// runPendingThumb() — reads control file, runs Python or FFmpeg
-// Control file path: system temp + sed_thumb_ctrl.json
-// JS writes the control file, then calls this with NO arguments
-// This completely avoids evalScript string escaping issues
 function runPendingThumb(){
     try{
-        // Find control file in system temp
         var ctrlPath = Folder.temp.fsName.replace(/\\/g,"/") + "/sed_thumb_ctrl.json";
         var ctrlFile = new File(ctrlPath);
         if(!ctrlFile.exists)
@@ -2047,17 +1760,11 @@ function runPendingThumb(){
         try{ ctrl = JSON.parse(ctrlJson); }
         catch(e){ return JSON.stringify({ok:false, msg:"Control parse error: "+e}); }
 
-        _writeLog("ffmpeg","[CTRL] mode="+ctrl.mode+" batch="+
-            (ctrl.batch?ctrl.batch.length:0)+" py="+ctrl.pythonExe);
+        _writeLog("thumb","[CTRL] batch="+(ctrl.batch?ctrl.batch.length:0)+" py="+ctrl.pythonExe);
 
-        if(ctrl.mode === "python"){
-            return runThumbGenPy(JSON.stringify(ctrl.batch), ctrl.pythonExe);
-        } else if(ctrl.mode === "ffmpeg"){
-            return launchFFmpegAllAsync(JSON.stringify(ctrl.batch), ctrl.ffmpegPath);
-        }
-        return JSON.stringify({ok:false, msg:"Unknown mode: "+ctrl.mode});
+        return runThumbGenPy(JSON.stringify(ctrl.batch), ctrl.pythonExe);
     }catch(e){
-        _writeLog("ffmpeg","[RUN PENDING THROW] "+e.toString()+" line="+(e.line||0));
+        _writeLog("thumb","[RUN PENDING THROW] "+e.toString()+" line="+(e.line||0));
         return JSON.stringify({ok:false, msg:"runPendingThumb error: "+e.toString()});
     }
 }
@@ -2067,7 +1774,7 @@ function runPendingThumb(){
 // Tests every pipeline component and reports status.
 // Called from JS when user clicks Diagnose button.
 // ══════════════════════════════════════════════════════════
-function getFullDiagnostics(customPath, pythonExe, ffmpegPath){
+function getFullDiagnostics(customPath, pythonExe){
     var d = {
         ok: true,
         aeVersion:        "?",
@@ -2087,12 +1794,6 @@ function getFullDiagnostics(customPath, pythonExe, ffmpegPath){
         pythonRunError:   "",
         thumbGenPyPath:   "",
         thumbGenPyExists: false,
-        // FFmpeg
-        ffmpegPath:       ffmpegPath || "",
-        ffmpegExists:     false,
-        ffmpegVersion:    "",
-        ffmpegRunsOk:     false,
-        ffmpegRunError:   "",
         // CEP bridge
         jsFn_dollarFileName: $.fileName,
         pluginRootFromDollar: "",
@@ -2194,19 +1895,6 @@ function getFullDiagnostics(customPath, pythonExe, ffmpegPath){
             }
         }
     }catch(e){ d.errors.push("cv2: "+e); }
-
-    // ── FFmpeg ──
-    try{
-        d.ffmpegExists = (new File(ffmpegPath)).exists;
-        if(!d.ffmpegExists) d.errors.push("FFmpeg not found: "+ffmpegPath);
-        if(d.ffmpegExists){
-            var tmpFf = _getTmp(customPath).fullName+"/sed_diag_ffver.txt";
-            system.callSystem('"'+ffmpegPath+'" -version > "'+tmpFf+'" 2>&1');
-            var fff = new File(tmpFf);
-            if(fff.exists){ fff.encoding="UTF8"; fff.open("r"); d.ffmpegVersion=fff.read().substring(0,80).replace(/[\r\n]+/g," "); fff.close(); fff.remove(); d.ffmpegRunsOk=true; }
-            else { d.ffmpegRunError="no output from -version"; }
-        }
-    }catch(e){ d.errors.push("ffmpeg: "+e); }
 
     // ── Log folder ──
     try{

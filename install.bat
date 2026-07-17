@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableDelayedExpansion
-title SED Panel CEP v3.1 - Installer
+title SED Panel CEP v3.2 - Installer
 
 echo.
 echo  =====================================================
-echo   SED Panel CEP  v3.1  ^|  Auto Installer  ^(Multi-Layer^)
+echo   SED Panel CEP  v3.2  ^|  Auto Installer  ^(Multi-Layer^)
 echo   Multi-Layer Read Markers  ^|  Thumbnail Multi-Layer  ^|  Merge Cut Layers
 echo   (c) 2026 Heosan
 echo  =====================================================
@@ -309,7 +309,7 @@ set "CEP_DIR=%ROAMING%\Adobe\CEP\extensions"
 set "DEST=%CEP_DIR%\com.heosan.sedpanel"
 set "SRC=%~dp0com.heosan.sedpanel"
 
-echo  Menginstall SED Panel v3.1 (Multi-Layer)...
+echo  Menginstall SED Panel v3.2 (Multi-Layer)...
 
 :: Buat folder jika belum ada
 if not exist "%ROAMING%\Adobe"     mkdir "%ROAMING%\Adobe"     >nul 2>&1
@@ -397,7 +397,7 @@ if "%ALL_OK%"=="0" (
 :: SELESAI
 :: ════════════════════════════════════════════════════════
 echo  =====================================================
-echo   INSTALASI SELESAI!  SED Panel CEP v3.1
+echo   INSTALASI SELESAI!  SED Panel CEP v3.2
 echo   Multi-Layer Read Markers  ^|  Thumbnail Multi-Layer  ^|  Merge Cut Layers
 echo  =====================================================
 echo.

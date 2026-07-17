@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>SED Panel v3.1</title>
+  <title>SED Panel v3.2</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -16,7 +16,7 @@
 <div id="onboard-overlay" class="hidden">
   <div id="onboard-box">
     <div id="onboard-header">
-            <div id="logo-icon">
+            <div class="logo-icon-stepper">
         <svg width="100%" height="100%" viewBox="8 15 80 68" fill="none" xmlns="http://www.w3.org/2000/svg">
   <rect x="14" y="29" width="68" height="38" rx="6"
     fill="none" stroke="white" stroke-opacity=".35" stroke-width="2.5"/>
@@ -30,7 +30,7 @@
   <circle cx="63" cy="30" r="7.5" fill="white" fill-opacity=".80"/>
 </svg>
       </div>
-      <span id="onboard-title">SED Panel v3.1</span>
+      <span id="onboard-title">SED Panel v3.2</span>
       <button id="onboard-skip" class="ob-skip">Skip</button>
     </div>
 
@@ -114,10 +114,10 @@
       <div class="ob-slide" data-slide="7">
         <div class="ob-slide-icon">ðŸ–¼</div>
         <div class="ob-slide-h" data-i18n="ob_h_thumb">Thumbnail Preview</div>
-        <div class="ob-slide-p" data-i18n="ob_thumb_desc">Click <strong>ðŸ–¼ Thumbs</strong> to generate thumbnails for each scene.<br>If it fails, open <strong>Settings â†’ Temp Folder</strong> and choose a writable folder.</div>
+        <div class="ob-slide-p" data-i18n="ob_thumb_desc">Click <strong>ðŸ–¼ Thumbs</strong> to generate thumbnails for each scene.<br><strong>Fast mode</strong> (default) uses Python cv2 â€” generates all at once with a progress popup.<br><strong>Lazy mode</strong> uses AE's saveFrameToPng â€” thumbnails appear one-by-one without a popup.<br>Switch modes in <strong>Settings â†’ Thumbnail Mode</strong>.</div>
         <div class="ob-tip">
           <span class="ob-tip-icon">ðŸ’¡</span>
-          <span data-i18n="ob_thumb_tip">Thumbnails are rendered by AE to the temp folder, then automatically cleaned after reading.</span>
+          <span data-i18n="ob_thumb_tip">Thumbnails are rendered to the temp folder, then automatically cleaned after reading. Lazy mode is best for quick previews; Fast mode is best for speed with large scene counts.</span>
         </div>
       </div>
 
@@ -150,18 +150,47 @@
 
     </div><!-- /slides -->
 
-    <!-- Dots + nav -->
-    <div id="onboard-dots">
-      <span class="ob-dot active" data-to="0"></span>
-      <span class="ob-dot" data-to="1"></span>
-      <span class="ob-dot" data-to="2"></span>
-      <span class="ob-dot" data-to="3"></span>
-      <span class="ob-dot" data-to="4"></span>
-      <span class="ob-dot" data-to="5"></span>
-      <span class="ob-dot" data-to="6"></span>
-      <span class="ob-dot" data-to="7"></span>
-      <span class="ob-dot" data-to="8"></span>
-      <span class="ob-dot" data-to="9"></span>
+    <!-- Stepper indicator -->
+    <div id="ob-steps">
+      <div class="ob-step active" data-step="1">
+        <span class="ob-step-num"><span>1</span></span>
+        <span class="ob-step-connector"></span>
+      </div>
+      <div class="ob-step" data-step="2">
+        <span class="ob-step-num"><span>2</span></span>
+        <span class="ob-step-connector"></span>
+      </div>
+      <div class="ob-step" data-step="3">
+        <span class="ob-step-num"><span>3</span></span>
+        <span class="ob-step-connector"></span>
+      </div>
+      <div class="ob-step" data-step="4">
+        <span class="ob-step-num"><span>4</span></span>
+        <span class="ob-step-connector"></span>
+      </div>
+      <div class="ob-step" data-step="5">
+        <span class="ob-step-num"><span>5</span></span>
+        <span class="ob-step-connector"></span>
+      </div>
+      <div class="ob-step" data-step="6">
+        <span class="ob-step-num"><span>6</span></span>
+        <span class="ob-step-connector"></span>
+      </div>
+      <div class="ob-step" data-step="7">
+        <span class="ob-step-num"><span>7</span></span>
+        <span class="ob-step-connector"></span>
+      </div>
+      <div class="ob-step" data-step="8">
+        <span class="ob-step-num"><span>8</span></span>
+        <span class="ob-step-connector"></span>
+      </div>
+      <div class="ob-step" data-step="9">
+        <span class="ob-step-num"><span>9</span></span>
+        <span class="ob-step-connector"></span>
+      </div>
+      <div class="ob-step" data-step="10">
+        <span class="ob-step-num"><span>10</span></span>
+      </div>
     </div>
     <div id="onboard-nav">
       <button id="ob-prev" class="ob-btn-nav" disabled data-i18n="ob_back">â† Back</button>
@@ -194,7 +223,7 @@
       </div>
       <div id="logo-text">
         <span id="logo-title">SED PANEL</span>
-        <span id="logo-ver">v3.1</span>
+        <span id="logo-ver">v3.2</span>
       </div>
       <button id="settings-btn" class="icon-btn" title="Settings" style="margin-left:auto">âš™</button>
       <button id="about-btn" class="icon-btn" title="About">?</button>
@@ -210,16 +239,20 @@
       <div class="field-value-row">
         <span id="layer-name" class="field-value">â€”</span>
         <button id="rf-btn" class="icon-btn" title="Refresh layer">â†»</button>
+        <button id="reset-thumb-btn" class="icon-btn" title="Reset thumbnails">ðŸ—‘</button>
       </div>
     </div>
 
     <!-- detect-wrap: shows either btn or AE-upgrade notice depending on AE version -->
     <div id="detect-wrap">
-      <button id="detect-btn" class="btn-detect">
-        <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" style="flex-shrink:0">
-          <polygon points="2,1 11,6 2,11"/>
-        </svg>
-        <span data-i18n="detect">DETECT SCENES</span>
+      <button id="detect-btn" class="btn-detect btn-i">
+        <span class="bi-text">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" style="flex-shrink:0">
+            <polygon points="2,1 11,6 2,11"/>
+          </svg>
+          <span data-i18n="detect">DETECT SCENES</span>
+        </span>
+        <span class="bi-hover"><span>Detect</span><span>â†’</span></span>
       </button>
       <!-- Shown on AE < 2022: detect not available -->
       <div id="ae-compat-notice" style="display:none">
@@ -231,7 +264,7 @@
     </div>
     <!-- Read Markers row: read btn + cancel (shown only while loading) -->
     <div class="btn-row btn-row-read">
-      <button id="read-btn" class="btn-read" data-i18n="read_marker">Read Markers</button>
+      <button id="read-btn" class="btn-read btn-i" data-i18n="read_marker"><span class="bi-text">Read Markers</span><span class="bi-hover"><span>Read</span><span>â†’</span></span></button>
       <button id="read-cancel-btn" class="btn-cancel-side" style="display:none" title="Cancel">âœ•</button>
     </div>
     <!-- Thumbs row: thumb btn + cancel + clean -->
@@ -242,7 +275,7 @@
     </div>
     <!-- Merge Scene row: combine adjacent selected scenes into one -->
     <div class="btn-row btn-row-merge">
-      <button id="merge-btn" class="btn-merge-side" data-i18n="merge_scenes">â›“ Gabungkan Scene</button>
+      <button id="merge-btn" class="btn-merge-side btn-i" data-i18n="merge_scenes"><span class="bi-text">â›“ Gabungkan Scene</span><span class="bi-hover"><span>Merge</span><span>â†’</span></span></button>
     </div>
 
     <div id="stats-row">
@@ -285,20 +318,22 @@
     <div class="divider"></div>
 
     <div id="actions">
-      <button id="split-all-btn" class="action-btn">
-        <span class="action-icon">âœ‚</span><span data-i18n="split_all">Cut All Cut Points</span>
+      <button id="split-all-btn" class="action-btn btn-i">
+        <span class="bi-text"><span class="action-icon">âœ‚</span><span data-i18n="split_all">Cut All Cut Points</span></span>
+        <span class="bi-hover"><span>Cut All</span><span>â†’</span></span>
       </button>
-      <button id="split-sel-btn" class="action-btn">
-        <span class="action-icon">âœ‚</span><span data-i18n="split_sel">Cut Selected Only</span>
+      <button id="split-sel-btn" class="action-btn btn-i">
+        <span class="bi-text"><span class="action-icon">âœ‚</span><span data-i18n="split_sel">Cut Selected Only</span></span>
+        <span class="bi-hover"><span>Cut</span><span>â†’</span></span>
       </button>
-      <button id="keep-sel-btn" class="action-btn action-btn-warn">
-        <span class="action-icon">ðŸ—‘</span><span data-i18n="keep_sel">Delete All Except Selected</span>
+      <button id="keep-sel-btn" class="action-btn action-btn-warn btn-i">
+        <span class="bi-text"><span class="action-icon">ðŸ—‘</span><span data-i18n="keep_sel">Delete All Except Selected</span></span>
+        <span class="bi-hover"><span>Delete</span><span>â†’</span></span>
       </button>
-      <button id="comp-mrkr-btn" class="action-btn">
-        <span class="action-icon">â—ˆ</span><span data-i18n="comp_markers">Add Comp Markers</span>
-      </button>
-      <button id="export-btn" class="action-btn action-btn-accent">
-        <span class="action-icon">ðŸŽ¬</span><span data-i18n="export_rq">Export â†’ Render Queue</span>
+
+      <button id="export-btn" class="action-btn action-btn-accent btn-i">
+        <span class="bi-text"><span class="action-icon">ðŸŽ¬</span><span data-i18n="export_rq">Export â†’ Render Queue</span></span>
+        <span class="bi-hover"><span>Export</span><span>â†’</span></span>
       </button>
     </div>
 
@@ -385,14 +420,14 @@
       </div>
     </div>
     <div id="about-name">SED PANEL</div>
-    <div id="about-version">v3.1.0 Â· Multi-Layer Â· Scene Edit Detection</div>
+    <div id="about-version">v3.2.0 Â· Multi-Layer Â· Scene Edit Detection</div>
     <div id="about-desc" data-i18n="about_desc">Scene Edit Detection Panel for Adobe After Effects.</div>
 
     <!-- Links -->
     <div id="about-links">
       <a href="#" class="about-link" id="link-tiktok"><span class="link-icon">ðŸ“±</span>TikTok @heosan</a>
       <a href="#" class="about-link" id="link-ig"><span class="link-icon">ðŸ“·</span>Instagram @_heosan</a>
-      <a href="#" class="about-link" id="link-web"><span class="link-icon">ðŸŒ</span>heosanweb.carrd.co</a>
+      <a href="#" class="about-link" id="link-web"><span class="link-icon">ðŸŒ</span>heosan.web.app</a>
     </div>
 
     <!-- Tutorial button -->
@@ -400,7 +435,7 @@
       ðŸ“– <span data-i18n="tutorial_btn">Tutorial â€” Panduan Penggunaan</span>
     </button>
 
-    <!-- Update notification -->
+    <!-- Update notification toggle -->
     <div class="about-section-title">UPDATE</div>
     <div id="update-notif-row">
       <div id="update-notif-info">
@@ -454,6 +489,21 @@
       <button id="temp-clear-btn" class="about-sys-btn" data-i18n="use_default_temp">Use Default Temp Folder</button>
     </div>
 
+    <div class="settings-section">
+      <div class="settings-section-title" data-i18n="thumb_mode">Thumbnail Mode</div>
+      <div class="settings-note" data-i18n="thumb_mode_desc">Choose how thumbnails are generated.</div>
+      <div id="thumb-mode-switcher">
+        <label class="thumb-mode-option">
+          <input type="radio" name="thumb-mode" id="thumb-mode-fast" value="fast" checked>
+          <span class="thumb-mode-label" data-i18n="thumb_mode_fast">Fast (Python cv2)</span>
+        </label>
+        <label class="thumb-mode-option">
+          <input type="radio" name="thumb-mode" id="thumb-mode-lazy" value="lazy">
+          <span class="thumb-mode-label" data-i18n="thumb_mode_lazy">Lazy (AE)</span>
+        </label>
+      </div>
+    </div>
+
     <button id="settings-close" data-i18n="close">Close</button>
   </div>
 </div>
@@ -482,6 +532,19 @@
   </div>
 </div>
 
+<!-- RQ EXPORT FREEZE WARNING MODAL -->
+<div id="rq-warn-overlay" class="overlay hidden">
+  <div id="rq-warn-modal">
+    <div id="rq-warn-icon">âš ï¸</div>
+    <div id="rq-warn-title" data-i18n="rq_warn_title">Export Many Scenes?</div>
+    <div id="rq-warn-msg" data-i18n="rq_warn_msg">Menambahkan banyak scene ke Render Queue berpotensi freeze AE sebentar. Lanjutkan?</div>
+    <div class="rq-warn-btns">
+      <button id="rq-warn-go" class="rq-warn-go disabled" disabled data-i18n="rq_warn_go">Langsung (5s)</button>
+      <button id="rq-warn-manual" class="rq-warn-manual" data-i18n="rq_warn_manual">Manual</button>
+    </div>
+  </div>
+</div>
+
 <!-- UPDATE NOTIFICATION POPUP -->
 <div id="update-overlay" class="overlay hidden">
   <div id="update-modal">
@@ -497,6 +560,7 @@
   </div>
 </div>
 
+<canvas id="click-spark-canvas"></canvas>
 <script src="js/CSInterface.js"></script>
 <script src="js/main.js?v=9.5.0"></script>
 </body>

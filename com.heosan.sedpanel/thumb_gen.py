@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 thumb_gen.py  —  SED Panel CEP v9.5
-Fast thumbnail generator using cv2.VideoCapture (no per-frame FFmpeg overhead).
+Fast thumbnail generator using cv2.VideoCapture.
 Called by host.jsx with a JSON jobs file. Returns JSON results to stdout.
 
 Usage: python thumb_gen.py <jobs_json_path>
@@ -50,30 +50,14 @@ def main():
         print(json.dumps({"ok": True, "results": []}))
         sys.exit(0)
 
-    # Try cv2 first (fastest — single VideoCapture, no process per frame)
     try:
         import cv2
         results = _extract_with_cv2(jobs)
         print(json.dumps({"ok": True, "engine": "cv2", "results": results}))
-        sys.exit(0)
     except ImportError:
-        # cv2 not installed — report clearly so log shows the real reason
-        sys.stderr.write("cv2 not available: opencv-python not installed for this Python version\n")
-        pass  # fall through to FFmpeg
+        print(json.dumps({"ok": False, "msg": "cv2 not available: opencv-python not installed"}))
     except Exception as e:
-        sys.stderr.write("cv2 failed: " + str(e) + "\n")
-
-    # Fallback: FFmpeg (one process per frame — slower but always available)
-    import shutil
-    import subprocess
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        print(json.dumps({"ok": False, "msg": "Neither cv2 nor ffmpeg available"}))
-        sys.exit(1)
-
-    results = _extract_with_ffmpeg(jobs, ffmpeg)
-    print(json.dumps({"ok": True, "engine": "ffmpeg", "results": results}))
-    sys.exit(0)
+        print(json.dumps({"ok": False, "msg": "cv2 failed: " + str(e)}))
 
 
 def _extract_with_cv2(jobs):
@@ -160,41 +144,6 @@ def _extract_with_cv2(jobs):
             results.append(result_map.get(j["idx"],
                            {"idx": j["idx"], "ok": False, "path": ""}))
 
-    return results
-
-
-def _extract_with_ffmpeg(jobs, ffmpeg_path):
-    """Fallback: one FFmpeg process per frame, supports per-job srcPath."""
-    import subprocess
-    results = []
-    for job in jobs:
-        idx = job["idx"]
-        seek = job["seekSec"]
-        src = job.get("srcPath", "")
-        out = job["outPath"]
-        try:
-            if not src or not os.path.isfile(src):
-                results.append({"idx": idx, "ok": False, "path": "",
-                                "err": "source not found"})
-                continue
-            out_dir = os.path.dirname(out)
-            if out_dir and not os.path.exists(out_dir):
-                os.makedirs(out_dir, exist_ok=True)
-            cmd = [
-                ffmpeg_path,
-                "-ss", f"{seek:.4f}",
-                "-i", src,
-                "-vf", "scale=320:-2",
-                "-frames:v", "1",
-                "-q:v", "3",
-                "-loglevel", "error",
-                "-y", out
-            ]
-            subprocess.run(cmd, capture_output=True, timeout=15)
-            ok = os.path.isfile(out) and os.path.getsize(out) > 100
-            results.append({"idx": idx, "ok": ok, "path": out if ok else ""})
-        except Exception as e:
-            results.append({"idx": idx, "ok": False, "path": "", "err": str(e)})
     return results
 
 
