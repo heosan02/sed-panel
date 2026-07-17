@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>SED Panel v2.1</title>
+  <title>SED Panel v2.2</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -30,7 +30,7 @@
   <circle cx="63" cy="30" r="7.5" fill="white" fill-opacity=".80"/>
 </svg>
       </div>
-      <span id="onboard-title">SED Panel v2.1</span>
+      <span id="onboard-title">SED Panel v2.2</span>
       <button id="onboard-skip" class="ob-skip">Skip</button>
     </div>
 
@@ -122,6 +122,16 @@
       </div>
 
       <div class="ob-slide" data-slide="8">
+        <div class="ob-slide-icon">â›“</div>
+        <div class="ob-slide-h" data-i18n="ob_h_merge">Merge Scene</div>
+        <div class="ob-slide-p" data-i18n="ob_merge_desc">Mark 2 or more <strong>adjacent</strong> scenes, then click <strong>â›“ Gabungkan Scene</strong> to combine them into one scene and one marker.</div>
+        <div class="ob-tip">
+          <span class="ob-tip-icon">âš </span>
+          <span data-i18n="ob_merge_tip">Only adjacent scenes can be merged (e.g. 1+2 or 5+6+7). Non-adjacent picks (e.g. 1+5) are skipped automatically, and if nothing is adjacent a warning will appear.</span>
+        </div>
+      </div>
+
+      <div class="ob-slide" data-slide="9">
         <div class="ob-slide-icon">âœ…</div>
         <div class="ob-slide-h" data-i18n="ob_h_ready">Ready to Use!</div>
         <div class="ob-slide-p" data-i18n="ob_ready_desc">All main features explained.<br>Open <strong>About â†’ Tutorial</strong> anytime to reopen this guide.</div>
@@ -151,6 +161,7 @@
       <span class="ob-dot" data-to="6"></span>
       <span class="ob-dot" data-to="7"></span>
       <span class="ob-dot" data-to="8"></span>
+      <span class="ob-dot" data-to="9"></span>
     </div>
     <div id="onboard-nav">
       <button id="ob-prev" class="ob-btn-nav" disabled data-i18n="ob_back">â† Back</button>
@@ -183,7 +194,7 @@
       </div>
       <div id="logo-text">
         <span id="logo-title">SED PANEL</span>
-        <span id="logo-ver">v2.1</span>
+        <span id="logo-ver">v2.2</span>
       </div>
       <button id="settings-btn" class="icon-btn" title="Settings" style="margin-left:auto">âš™</button>
       <button id="about-btn" class="icon-btn" title="About">?</button>
@@ -218,10 +229,20 @@
         <div id="ae-compat-ver" class="ae-compat-ver"></div>
       </div>
     </div>
-    <button id="read-btn" class="btn-read" data-i18n="read_marker">Read Markers</button>
+    <!-- Read Markers row: read btn + cancel (shown only while loading) -->
+    <div class="btn-row btn-row-read">
+      <button id="read-btn" class="btn-read" data-i18n="read_marker">Read Markers</button>
+      <button id="read-cancel-btn" class="btn-cancel-side" style="display:none" title="Cancel">âœ•</button>
+    </div>
+    <!-- Thumbs row: thumb btn + cancel + clean -->
     <div class="btn-row btn-row-thumb">
       <button id="thumb-btn" class="btn-thumb-side" data-i18n="gen_thumbs">ðŸ–¼ Thumbs</button>
+      <button id="thumb-cancel-btn" class="btn-cancel-side" style="display:none" title="Cancel">âœ•</button>
       <button id="clean-btn" class="btn-clean-side" data-i18n="clean_tmp">ðŸ—‘ Tmp</button>
+    </div>
+    <!-- Merge Scene row: combine adjacent selected scenes into one -->
+    <div class="btn-row btn-row-merge">
+      <button id="merge-btn" class="btn-merge-side" data-i18n="merge_scenes">â›“ Gabungkan Scene</button>
     </div>
 
     <div id="stats-row">
@@ -364,7 +385,7 @@
       </div>
     </div>
     <div id="about-name">SED PANEL</div>
-    <div id="about-version">v2.1.0 Â· Scene Edit Detection</div>
+    <div id="about-version">v2.2.0 Â· Scene Edit Detection</div>
     <div id="about-desc" data-i18n="about_desc">Scene Edit Detection Panel for Adobe After Effects.</div>
 
     <!-- Links -->
@@ -438,6 +459,30 @@
   </div>
 </div>
 
+<!-- THUMBNAIL LOADING MODAL -->
+<div id="thumb-progress-overlay" class="overlay hidden">
+  <div id="thumb-progress-modal">
+    <div id="thumb-progress-icon">ðŸ–¼</div>
+    <div id="thumb-progress-title" data-i18n="thumb_modal_title">Generating Thumbnails</div>
+    <div id="thumb-progress-bar-track">
+      <div id="thumb-progress-bar-fill"></div>
+    </div>
+    <div id="thumb-progress-count">0 / 0</div>
+    <div id="thumb-progress-sub" data-i18n="thumb_modal_sub">Please wait, this won't block After Effects.</div>
+    <button id="thumb-progress-cancel" class="about-section-btn" data-i18n="cancel_btn">Cancel</button>
+  </div>
+</div>
+
+<!-- MERGE SCENE WARNING / CONFIRM MODAL -->
+<div id="merge-overlay" class="overlay hidden">
+  <div id="merge-modal">
+    <div id="merge-modal-icon">â›“</div>
+    <div id="merge-modal-title" data-i18n="merge_modal_title">Merge Scene</div>
+    <div id="merge-modal-msg" data-i18n="merge_need_adjacent">Select at least 2 adjacent scenes to merge.</div>
+    <button id="merge-modal-close" data-i18n="close">Close</button>
+  </div>
+</div>
+
 <!-- UPDATE NOTIFICATION POPUP -->
 <div id="update-overlay" class="overlay hidden">
   <div id="update-modal">
@@ -454,6 +499,6 @@
 </div>
 
 <script src="js/CSInterface.js"></script>
-<script src="js/main.js?v=7.5.0"></script>
+<script src="js/main.js?v=8.3.0"></script>
 </body>
 </html>

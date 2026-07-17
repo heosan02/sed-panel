@@ -2,7 +2,28 @@
 
 All notable changes to SED Panel will be documented here.
 
-## [2.1.0] - 2026-07-01
+## [2.2.0] - 2026-07-03
+
+### Added
+- FFmpeg thumbnail pipeline for fast batch extraction
+- Python cv2 thumbnail fallback when FFmpeg unavailable
+- Thumbnail poller system with 45s timeout
+- Thumbnail progress modal with progress bar, count, ETA, cancel button
+- Merge adjacent scenes feature
+- Global error handler (window.onerror) catches uncaught JS exceptions
+- _jsLog() structured logging helper to AE ExtendScript console
+- Cancel flags (_thumbCancelled, _readCancelled) for safe abort
+- ETA display during thumbnail generation
+- New i18n strings: scene_count, scene_from_markers, read_cancelled, no_markers, ffmpeg_stalled
+
+### Changed
+- readThumbDataURI() now detects JPG vs PNG for correct MIME type
+- Thumbnail system rewritten to support FFmpeg/cv2/AE fallback chain
+
+### Compatibility
+- Adobe After Effects 2022 (v22.0) through 2026 (v26.0)
+
+## [2.1.0] — 2026-07-01
 
 ### Added
 - AE 2025 (v25) compatibility verified

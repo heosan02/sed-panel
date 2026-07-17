@@ -1,7 +1,20 @@
-/* SED Panel v2.1 - main.js - (c) 2026 Heosan */
+/* SED Panel v2.2 - main.js - (c) 2026 Heosan */
 /* global CSInterface */
 (function(){
 "use strict";
+
+// Global error handler — catches ALL uncaught JS exceptions and logs them
+window.onerror = function(msg, url, line, col, err){
+  try{
+    var _el = document.getElementById("status-text");
+    if(_el && _el.textContent.indexOf("ERROR") < 0)
+      _el.textContent = "⚠ JS Error";
+  }catch(e){}
+  try{
+    var _cs = new CSInterface();
+    _cs.evalScript('_writeLog("thumb","[GLOBAL ERROR] msg="+msg+" url="+url+" line="+line)');
+  }catch(e){}
+};
 
 var cs = new CSInterface();
 var ONBOARD_KEY = "sed_panel_v5_onboarded";
@@ -9,7 +22,7 @@ var LANG_KEY = "sed_panel_lang";
 var TMP_KEY = "sed_panel_custom_tmp";
 var UPDATE_NOTIF_KEY = "sed_panel_update_notif";
 var UPDATE_LATER_KEY = "sed_panel_update_later_at";
-var CUR_VER = "2.1.0";
+var CUR_VER = "2.2.0";
 var GH_REPO = "heosan02/sed-panel";
 
 // ═══ i18n ══════════════════════════════════════════════
@@ -59,12 +72,42 @@ var T={
     confirm_clean:"Clear temporary thumbnail files?",
     no_detect:"Detect scenes first.", no_mark:"Mark at least 1 scene.",
     no_cut:"No cut points from selected scenes.",
+    scene_count:"✓ {n} scenes — {layer}",
+    scene_from_markers:"✓ {n} scenes from markers",
+    read_cancelled:"Read Markers cancelled.",
+    no_markers:"No markers.",
+    ffmpeg_stalled:"FFmpeg stalled — falling back to AE capture",
     thumb_gen:"Thumb {i}/{n}…", thumb_done:"✓ {ok}/{n} thumbnails done.",
     split_ok:"✓ {n} cuts done.", keep_ok:"✓ {kept} kept · {del} deleted.",
     export_ok:"✓ {n} scenes → Render Queue.",
     export_alert:"{n} scenes added to Render Queue.\n\nWindow → Render Queue → Set output path → Render All",
     marker_clear:"All markers deleted.", markers_added:"✓ {n} comp markers added.",
     clean_ok:"✓ Cleared {n} temp file(s).",
+    // Thumbnail progress modal (v8.3)
+    thumb_modal_title:"Generating Thumbnails",
+    thumb_modal_sub:"Please wait, this won't block After Effects.",
+    cancel_btn:"Cancel",
+    // Thumbnail progress — Phase 1 (Render ETA) + Phase 2 (Load)
+    thumb_eta:"≈ {time} remaining",
+    thumb_loading:"Loading thumbnails...",
+    thumb_fail:"Thumbs failed — check Settings → Temp Folder",
+    thumb_failing:"Thumbs failing — check Settings → Temp Folder",
+    thumb_start:"Generating thumbnails…",
+    thumb_cancelled:"Thumbnail generation cancelled.",
+    // Merge Scene (v8.3)
+    merge_scenes:"⛓ Merge Scene",
+    merge_modal_title:"Merge Scene",
+    merge_need_2:"Select at least 2 scenes to merge.",
+    merge_need_adjacent:"None of the selected scenes are adjacent.\nMerge requires at least 2 scenes next to each other (e.g. 1+2 or 5+6+7).",
+    merge_partial_skip:"Only adjacent scenes were merged.\nNon-adjacent scene(s) were skipped: {skipped}",
+    merge_confirm:"Merge {n} scenes (#{from}–#{to}) into 1 scene?\nThis will combine their AE markers into a single marker.",
+    merge_confirm_multi:"Merge {groups} group(s) of adjacent scenes ({n} scenes total) into {groups} scene(s)?\nThis will combine each group's AE markers into a single marker.",
+    merging:"Merging scenes…",
+    merge_ok:"✓ {groups} group(s) merged → {total} scene(s) total.",
+    merge_fail:"Merge failed.",
+    ob_h_merge:"Merge Scene",
+    ob_merge_desc:"<strong>How to use:</strong><br>1. Mark 2+ <strong>adjacent</strong> scenes (Ctrl+Click or Double-click).<br>2. Click <strong>⛓ Merge Scene</strong> — a confirmation dialog will appear.<br>3. Click OK — the scenes are combined into one, AE markers are merged, and the thumbnail from the first scene is preserved.",
+    ob_merge_tip:"Only adjacent scenes can merge (e.g. 1+2 or 5+6+7). Non-adjacent picks (e.g. 1+5) are skipped. Multiple separate adjacent groups (1+2 and 5+6) can be merged in one click.",
     // Onboarding slides
     ob_back:"← Back", ob_next:"Next →", ob_start:"✓ Start Using",
     ae_no_detect:"Scene Edit Detection is not available in this AE version.",
@@ -129,12 +172,42 @@ var T={
     confirm_clean:"Hapus file thumbnail sementara?",
     no_detect:"Deteksi scene dulu.", no_mark:"Tandai minimal 1 scene.",
     no_cut:"Tidak ada cut point dari scene terpilih.",
+    scene_count:"✓ {n} scene — {layer}",
+    scene_from_markers:"✓ {n} scene dari marker",
+    read_cancelled:"Baca Marker dibatalkan.",
+    no_markers:"Tidak ada marker.",
+    ffmpeg_stalled:"FFmpeg macet — fallback ke AE capture",
     thumb_gen:"Thumb {i}/{n}…", thumb_done:"✓ {ok}/{n} thumbnail selesai.",
     split_ok:"✓ {n} potongan berhasil.", keep_ok:"✓ {kept} dipertahankan · {del} dihapus.",
     export_ok:"✓ {n} scene → Render Queue.",
     export_alert:"{n} scene → Render Queue.\n\nWindow → Render Queue → Atur output → Render All",
     marker_clear:"Semua marker dihapus.", markers_added:"✓ {n} comp marker ditambahkan.",
     clean_ok:"✓ {n} file temp dihapus.",
+    // Thumbnail progress modal (v8.3)
+    thumb_modal_title:"Membuat Thumbnail",
+    thumb_modal_sub:"Mohon tunggu, After Effects tidak akan freeze.",
+    cancel_btn:"Batal",
+    // Thumbnail progress — Phase 1 (Render ETA) + Phase 2 (Load)
+    thumb_eta:"≈ {time} tersisa",
+    thumb_loading:"Memuat thumbnail...",
+    thumb_fail:"Thumbnail gagal — cek Settings → Temp Folder",
+    thumb_failing:"Thumbnail sering gagal — cek Settings → Temp Folder",
+    thumb_start:"Membuat thumbnail…",
+    thumb_cancelled:"Pembuatan thumbnail dibatalkan.",
+    // Merge Scene (v8.3)
+    merge_scenes:"⛓ Gabungkan Scene",
+    merge_modal_title:"Gabungkan Scene",
+    merge_need_2:"Pilih minimal 2 scene untuk digabungkan.",
+    merge_need_adjacent:"Tidak ada scene terpilih yang berdekatan.\nMerge membutuhkan minimal 2 scene yang bersebelahan (contoh: 1+2 atau 5+6+7).",
+    merge_partial_skip:"Hanya scene yang berdekatan yang digabungkan.\nScene yang tidak berdekatan dilewati: {skipped}",
+    merge_confirm:"Gabungkan {n} scene (#{from}–#{to}) menjadi 1 scene?\nMarker AE dari scene-scene ini akan digabung jadi 1 marker.",
+    merge_confirm_multi:"Gabungkan {groups} grup scene yang berdekatan ({n} scene total) menjadi {groups} scene?\nMarker AE dari tiap grup akan digabung jadi 1 marker per grup.",
+    merging:"Menggabungkan scene…",
+    merge_ok:"✓ {groups} grup digabung → total {total} scene.",
+    merge_fail:"Gabungkan scene gagal.",
+    ob_h_merge:"Gabungkan Scene",
+    ob_merge_desc:"<strong>Cara pakai:</strong><br>1. Tandai 2+ scene yang <strong>berdekatan</strong> (Ctrl+Klik atau Dobel-klik).<br>2. Klik <strong>⛓ Gabungkan Scene</strong> — akan muncul dialog konfirmasi.<br>3. Klik OK — scene akan digabung jadi satu, marker AE akan digabung, dan thumbnail dari scene pertama akan dipakai.",
+    ob_merge_tip:"Hanya scene berdekatan yang bisa digabung (contoh: 1+2 atau 5+6+7). Scene tidak berdekatan (contoh: 1+5) otomatis dilewati. Beberapa grup berdekatan terpisah (1+2 dan 5+6) bisa digabung dalam satu klik.",
     // Onboarding slides
     ob_back:"← Kembali", ob_next:"Berikutnya →", ob_start:"✓ Mulai",
     ae_no_detect:"Scene Edit Detection tidak tersedia di versi AE ini.",
@@ -217,6 +290,14 @@ function callHost(fn,args,cb){
     if(cb)cb(p);
   });
 }
+
+// ── JS-side log (written via JSX _writeLog) ──────────────
+function _jsLog(category, msg){
+  try{
+    var escaped = msg.replace(/\\/g,"\\\\").replace(/"/g,'\\"');
+    evalScript('_writeLog("'+category+'","'+escaped+'")', function(){});
+  }catch(e){}
+}
 function pad2(n){return (n<10?"0":"")+Math.floor(n);}
 function pad3(n){return (n<10?"00":n<100?"0":"")+Math.floor(n);}
 function fmtTC(sec,fps){
@@ -229,10 +310,49 @@ function setStatus(msg,cls){
   $("status").textContent=msg; $("status-dot").className=cls||"";
 }
 function setThumbCount(n){$("thumb-count-lbl").textContent=n;}
-function setThumbProgress(txt){
-  var el=$("thumb-progress");
-  if(txt){el.textContent=txt;el.classList.remove("hidden");}
-  else   {el.classList.add("hidden");}
+
+// setThumbProgress(done, total) — updates BOTH the small header label
+// AND the popup modal progress bar/count, so the two stay perfectly in sync.
+// Calling with no args (or done=null) hides both indicators.
+function setThumbProgress(done, total){
+  var el = $("thumb-progress");
+  if(done===null || done===undefined){
+    if(el) el.classList.add("hidden");
+    _hideThumbProgressModal();
+    _thumbStartTime = 0;
+    return;
+  }
+  total = (total===undefined || total===null) ? S.scenes.length : total;
+  var txt = done + "/" + total;
+  if(el){ el.textContent = txt; el.classList.remove("hidden"); }
+  _updateThumbProgressModal(done, total);
+}
+
+// ── Thumbnail Progress Modal — popup overlay (v8.3) ──────
+// Always shown while thumbnail generation runs. Purely a UI/visual
+// concern — the underlying pipeline already runs async (fire-and-forget
+// JSX launch + JS-side polling), so showing this modal never blocks AE.
+function _showThumbProgressModal(total){
+  var ov = $("thumb-progress-overlay");
+  if(!ov) return;
+  var fill = $("thumb-progress-bar-fill");
+  var cnt  = $("thumb-progress-count");
+  if(fill) fill.style.width = "0%";
+  if(cnt)  cnt.textContent = "";
+  ov.classList.remove("hidden");
+}
+function _updateThumbProgressModal(done, total){
+  var ov = $("thumb-progress-overlay");
+  if(!ov || ov.classList.contains("hidden")) return;
+  var fill = $("thumb-progress-bar-fill");
+  var cnt  = $("thumb-progress-count");
+  var pct  = total>0 ? Math.min(100, Math.round((done/total)*100)) : 0;
+  if(fill) fill.style.width = pct + "%";
+  if(cnt)  cnt.textContent = done + " / " + total;
+}
+function _hideThumbProgressModal(){
+  var ov = $("thumb-progress-overlay");
+  if(ov) ov.classList.add("hidden");
 }
 function loadPrefs(){
   try{ LANG=localStorage.getItem(LANG_KEY)||LANG; }catch(e){}
@@ -270,18 +390,21 @@ function filePathToURI(path){
 }
 function readThumbDataURI(path){
   if(!path) return "";
+  var isJpg = /\.jpe?g$/i.test(path);
+  var mime  = isJpg ? "image/jpeg" : "image/png";
   try{
     if(typeof require==="function"){
       var fs=require("fs");
       if(fs&&fs.existsSync(path)){
-        return "data:image/png;base64,"+fs.readFileSync(path).toString("base64");
+        return "data:"+mime+";base64,"+fs.readFileSync(path).toString("base64");
       }
     }
   }catch(e1){}
   try{
     if(window.cep&&window.cep.fs&&window.cep.encoding){
-      var r=window.cep.fs.readFile(path,window.cep.encoding.Base64);
-      if(r&&r.err===0&&r.data) return "data:image/png;base64,"+r.data;
+      var np = path.replace(/\\/g,"/");
+      var r=window.cep.fs.readFile(np,window.cep.encoding.Base64);
+      if(r&&r.err===0&&r.data) return "data:"+mime+";base64,"+r.data;
     }
   }catch(e2){}
   return filePathToURI(path);
@@ -372,57 +495,702 @@ $("open-tutorial-btn").addEventListener("click",function(){
 });
 
 // ═══ Thumbnails ═════════════════════════════════════════
-function startThumbGen(){
-  if(S.thumbLoading){setStatus(t("thumb_gen",{i:"…",n:"…"}),"warn");return;}
-  if(!S.scenes.length){setStatus(t("no_detect"),"warn");return;}
-  var n=S.scenes.length;
-  var mn=Math.ceil(n*1),mx=Math.ceil(n*3);
-  if(!confirm(t("confirm_thumbs",{n:n,min:mn,max:mx}))) return;
-  _doStartThumb();
+
+// ── FFmpeg + Python state (resolved once per session) ────
+var _ffmpeg = {
+  checked:   false,   // FFmpeg sudah dicek belum
+  available: false,   // apakah FFmpeg tersedia
+  path:      "",      // path FFmpeg executable
+  tier:      0,       // 1=PATH, 2=bundled, 0=tidak ada
+  // Python state (checked once per session)
+  pyChecked:  false,  // Python sudah dicek belum
+  pyAvail:    false,  // apakah Python tersedia
+  pyPath:     "",     // path Python executable
+  // source info (resolved once per thumb session)
+  srcInfoDone:    false,
+  sourcePath:     "",
+  layerStartSec:  0,
+  sourceStartSec: 0,
+  fps:            24,
+  tmpPath:        ""
+};
+
+// ── Resolve FFmpeg once, then call callback(available) ───
+function _resolveFFmpeg(cb){
+  if(_ffmpeg.checked){ cb(_ffmpeg.available); return; }
+  callHost("findFFmpeg",[],function(res){
+    _ffmpeg.checked   = true;
+    _ffmpeg.available = !!(res && res.ok && res.path);
+    _ffmpeg.path      = (res && res.path) || "";
+    _ffmpeg.tier      = (res && res.tier) || 0;
+    cb(_ffmpeg.available);
+  });
 }
-// Auto: called after detect/readMarkers — no confirm dialog
-function _startThumbAuto(){
-  if(S.thumbLoading) return;
-  if(!S.scenes.length) return;
-  _doStartThumb();
+
+// ── Resolve source file info once per thumb session ──────
+function _resolveSourceInfo(cb){
+  if(_ffmpeg.srcInfoDone){ cb(true); return; }
+  callHost("getSourceFileInfo",[],function(res){
+    if(res && res.ok){
+      _ffmpeg.srcInfoDone   = true;
+      _ffmpeg.sourcePath    = res.sourcePath || "";
+      _ffmpeg.layerStartSec = res.layerStartSec || 0;
+      _ffmpeg.sourceStartSec= res.sourceStartSec || 0;
+      _ffmpeg.fps           = res.fps || S.fps || 24;
+      cb(true);
+    } else {
+      cb(false);
+    }
+  });
 }
-// Shared core: reset state, start sequential capture
+
+// ── Resolve temp folder path via JSX ─────────────────────
+function _resolveTmpPath(cb){
+  if(_ffmpeg.tmpPath){ cb(_ffmpeg.tmpPath); return; }
+  callHost("getTempFolderPath",[S.customTmpPath],function(res){
+    _ffmpeg.tmpPath = (res && res.path) ? res.path : "";
+    cb(_ffmpeg.tmpPath);
+  });
+}
+
+// ── Resolve Python executable (checked once) ─────────────
+function _resolvePython(cb){
+  if(_ffmpeg.pyChecked){ cb(_ffmpeg.pyAvail); return; }
+  callHost("findPython",[],function(res){
+    _ffmpeg.pyChecked = true;
+    _ffmpeg.pyAvail   = !!(res && res.path);
+    _ffmpeg.pyPath    = (res && res.path) || "";
+    _jsLog("thumb","[PYTHON] avail="+_ffmpeg.pyAvail+" path="+_ffmpeg.pyPath);
+    cb(_ffmpeg.pyAvail);
+  });
+}
+
+// ── Calculate correct source timestamp for FFmpeg ────────
+// comp_time → source file time
+// source_seek = comp_seek - layerStartSec + sourceStartSec
+// clamped to [0, …]
+function _calcSourceSec(compSec){
+  var t = compSec - _ffmpeg.layerStartSec + _ffmpeg.sourceStartSec;
+  return Math.max(0, t);
+}
+
+// ── Thumbnail pipeline — async polling engine ─────────────
+//
+// Architecture (solves all 3 root causes):
+//
+// 1. ONE FFmpeg process for ALL scenes (concat demuxer or per-frame bat)
+//    → eliminates 60x process startup overhead
+//
+// 2. Fire-and-forget launch: JSX starts FFmpeg and returns IMMEDIATELY
+//    → AE never blocks, JS event loop never freezes
+//
+// 3. JS polls cep.fs.stat every 150ms per file (non-blocking setInterval)
+//    → thumbnails injected to DOM the moment each file lands on disk
+//    → user sees thumbnails appear one-by-one in real-time
+//
+// Result: 60 scenes ~3-5 sec total, first thumbnail visible in <1 sec
+
+var _pollTimer    = null;   // active polling interval
+var _pollPending  = [];     // [{idx, outPath, done}]
+var _pollDoneCount= 0;
+var _pollTotal    = 0;
+var _pollTimeout  = 45000;  // 45s max wait
+var _pollElapsed  = 0;
+var _pollInterval = 150;    // ms between polls
+var _thumbCancelled = false; // cancel flag for thumb generation
+var _readCancelled  = false; // cancel flag for read markers
+var _thumbGenFinished = false; // guard against double _finishThumbGen call
+var _thumbStartTime = 0; // timestamp when generation started (for ETA)
+function _fmtDuration(sec){
+  sec = Math.max(0, Math.round(sec));
+  if(sec < 60) return sec + "s";
+  var m = Math.floor(sec / 60);
+  var s = sec % 60;
+  return m + "m " + s + "s";
+}
+
+function _stopPoller(){
+  if(_pollTimer){ clearInterval(_pollTimer); _pollTimer=null; }
+}
+
+// ── Python results-file poller (v8.3) ─────────────────────
+// Python writes ONE results JSON file (not per-scene files like FFmpeg),
+// so we poll for a small "done" flag file instead of hundreds of paths.
+// Once the flag appears, we read+parse the results file exactly once.
+// This keeps AE fully responsive while Python processes all frames —
+// no evalScript call ever blocks waiting for Python to finish.
+var _pyPollTimer   = null;
+var _pyPollElapsed = 0;
+var _pyPollTimeout = 300000; // 300s (5min) max wait — Python cv2 can take 1-2s per scene for 300+ scenes
+function _stopPyPoller(){
+  if(_pyPollTimer){ clearInterval(_pyPollTimer); _pyPollTimer=null; }
+}
+function _startPyResultPoller(donePath, resultsPath, errPath, expectedPaths, onDone, onFail){
+  _stopPyPoller();
+  _pyPollElapsed = 0;
+  var renderRate = 3; // default estimate: 3 scenes/sec
+  var totalScenes = S.scenes.length || 1;
+  var etaTotalSec = Math.max(1, Math.round(totalScenes / renderRate));
+  _jsLog("thumb","[PYPOLL] watching donePath="+donePath+" scenes="+totalScenes+" eta="+etaTotalSec+"s");
+
+  // ═══════════════════════════════════════════════════════════
+  // Phase 1 — Render: show ETA countdown while Python writes
+  // all JPEGs to the temp folder. No file injection yet.
+  // ═══════════════════════════════════════════════════════════
+  _pyPollTimer = setInterval(function(){
+    _pyPollElapsed += _pollInterval;
+    if(_thumbCancelled){ _stopPyPoller(); return; }
+
+    // Phase 1: show ETA only (no scenes count)
+    var elapsedSec = Math.floor(_pyPollElapsed / 1000);
+    var remaining = Math.max(0, etaTotalSec - elapsedSec);
+    var subEl = $("thumb-progress-sub");
+    if(subEl) subEl.textContent = t("thumb_eta",{time:_fmtDuration(remaining)});
+    var fill = $("thumb-progress-bar-fill");
+    if(fill){
+      var pct = Math.min(100, Math.round((elapsedSec / etaTotalSec) * 100));
+      fill.style.width = pct + "%";
+    }
+    var cnt = $("thumb-progress-count");
+    if(cnt) cnt.textContent = "\u2248" + _fmtDuration(remaining);
+
+    // Check for Python done flag
+    var flagExists = false;
+    try{
+      var stat = window.cep.fs.stat(donePath.replace(/\\/g,"/"));
+      flagExists = !!(stat && stat.err===0);
+    }catch(e){}
+
+    if(flagExists){
+      _stopPyPoller();
+      _jsLog("thumb","[PYPOLL] done flag found after "+(elapsedSec)+"s → load phase");
+      // Flush delay, then enter Phase 2
+      setTimeout(function(){
+        _startPyLoadPhase(donePath, resultsPath, errPath, onDone, onFail);
+      }, 60);
+      return;
+    }
+
+    if(_pyPollElapsed >= _pyPollTimeout){
+      _stopPyPoller();
+      onFail("Python timed out after "+(_pyPollTimeout/1000)+"s");
+    }
+  }, _pollInterval);
+}
+
+// ═══════════════════════════════════════════════════════════
+// Phase 2 — Load: Python finished, all JPEGs on disk.
+// Read results JSON and inject thumbnails one-by-one with
+// staggered setTimeout so user sees 1/311 → 2/311 → … → 311/311.
+// ═══════════════════════════════════════════════════════════
+function _startPyLoadPhase(donePath, resultsPath, errPath, onDone, onFail){
+  // Flush delay already passed (60ms from caller)
+  var resultsJson = null;
+  try{
+    var rd = window.cep.fs.readFile(resultsPath.replace(/\\/g,"/"));
+    if(rd && rd.err === 0 && rd.data) resultsJson = rd.data;
+  }catch(e){}
+  try{ window.cep.fs.deleteFile(donePath.replace(/\\/g,"/")); }catch(e){}
+  try{ window.cep.fs.deleteFile(resultsPath.replace(/\\/g,"/")); }catch(e){}
+  try{ window.cep.fs.deleteFile(errPath.replace(/\\/g,"/")); }catch(e){}
+
+  if(!resultsJson){ onFail("Python results file unreadable"); return; }
+  var parsed;
+  try{ parsed = JSON.parse(resultsJson); }
+  catch(e){ onFail("Bad JSON from Python: "+resultsJson.substring(0,150)); return; }
+  if(!parsed.ok){ onFail(parsed.msg || "unknown Python error"); return; }
+  var results = parsed.results || [];
+
+  // Reset modal: remove ETA, show "Loading X / Y" instead
+  var subEl = $("thumb-progress-sub");
+  if(subEl) subEl.textContent = t("thumb_loading");
+  setThumbProgress(0, S.scenes.length);
+
+  (function injectOne(i){
+    if(_thumbCancelled){ return; }
+    if(i >= results.length){
+      onDone(results);
+      return;
+    }
+    var r = results[i];
+    if(r.ok && r.path && S.thumbs[r.idx] === undefined){
+      _thumbFailStreak = 0;
+      acceptThumbJPG(r.idx, r.path, filePathToURI(r.path));
+      setThumbProgress(S.thumbDone, S.scenes.length);
+    }
+    setTimeout(function(){ injectOne(i+1); }, 20);
+  })(0);
+}
+
+// _startPoller(expectedPaths) — begin polling for all expected output files
+// expectedPaths: [{idx, outPath}]
+function _startPoller(expectedPaths){
+  _stopPoller();
+  _pollPending   = expectedPaths.map(function(p){
+    return {idx:p.idx, outPath:p.outPath, done:false};
+  });
+  _pollDoneCount  = 0;
+  _pollTotal      = _pollPending.length;
+  _pollElapsed    = 0;
+  var _noProgressMs = 0;     // ms since last new file found
+  var _noProgressMax = 12000; // if no new file in 12s, FFmpeg likely failed
+
+  _jsLog("thumb","[POLL] watching "+_pollTotal+" paths interval="+_pollInterval+"ms");
+
+  _pollTimer = setInterval(function(){
+    _pollElapsed   += _pollInterval;
+    var foundThisTick = 0;
+
+    for(var i = 0; i < _pollPending.length; i++){
+      var item = _pollPending[i];
+      if(item.done) continue;
+      var exists = false;
+      try{
+        var np   = item.outPath.replace(/\\/g,"/");
+        var stat = window.cep.fs.stat(np);
+        exists   = !!(stat && stat.err===0 && stat.data && stat.data.size > 200);
+      }catch(e){}
+
+      if(exists){
+        item.done = true;
+        _pollDoneCount++;
+        foundThisTick++;
+        _thumbFailStreak = 0;
+        acceptThumbJPG(item.idx, item.outPath, filePathToURI(item.outPath));
+        setThumbProgress(_pollDoneCount, _pollTotal);
+      }
+    }
+
+    if(foundThisTick > 0){
+      _noProgressMs = 0; // reset stall counter
+    } else {
+      _noProgressMs += _pollInterval;
+    }
+
+    // All done
+    if(_pollDoneCount >= _pollTotal){
+      _stopPoller();
+      _finishThumbGen();
+      return;
+    }
+
+    // Stall detection: if no file appeared in _noProgressMax ms AND
+    // we haven't found any yet after 3s → FFmpeg likely crashed → fallback
+    if(_noProgressMs >= _noProgressMax){
+      var pct = _pollDoneCount / _pollTotal;
+      _jsLog("thumb","[POLL STALL] done="+_pollDoneCount+"/"+_pollTotal+
+             " elapsed="+_pollElapsed+"ms → fallback");
+      _stopPoller();
+      if(_pollDoneCount === 0){
+        // Nothing worked at all — fall back to AE per-frame capture
+        _jsLog("thumb","[POLL FALLBACK] → AE captureSceneFrames");
+        setStatus(t("ffmpeg_stalled"),"warn");
+        _captureNext(0);
+      } else {
+        // Partial success — finish with what we have
+        _finishThumbGen();
+      }
+      return;
+    }
+
+    // Hard timeout
+    if(_pollElapsed >= _pollTimeout){
+      _stopPoller();
+      _jsLog("thumb","[POLL TIMEOUT] done="+_pollDoneCount+"/"+_pollTotal);
+      for(var j=0;j<_pollPending.length;j++){
+        if(!_pollPending[j].done) _thumbFailStreak++;
+      }
+      _finishThumbGen();
+    }
+  }, _pollInterval);
+}
+
+// _doStartThumb — pipeline entry point
 function _doStartThumb(){
   S.thumbLoading=true; S.thumbDone=0; S.thumbs={}; S.thumbPaths={};
+  _thumbCancelled = false;
+  _thumbGenFinished = false;
+  _thumbStartTime = Date.now();
   $("thumb-btn").classList.add("loading");
-  setThumbCount(0); setThumbProgress("0/"+S.scenes.length);
-  _captureNext(0);
+  $("thumb-cancel-btn").style.display = "";
+  setThumbCount(0);
+  _showThumbProgressModal(S.scenes.length);
+  setThumbProgress(0, S.scenes.length);
+  _stopPoller();
+
+  // Reset all per-session state
+  _ffmpeg.checked      = false;
+  _ffmpeg.pyChecked    = false;
+  _ffmpeg.srcInfoDone  = false;
+  _ffmpeg.tmpPath      = "";
+
+  _jsLog("thumb","[START] scenes="+S.scenes.length+" customTmpPath="+(S.customTmpPath||""));
+
+  // Build full batch array once — reused by all pipeline tiers
+  function _buildBatch(tmpPath){
+    var batch = [];
+    var tmpWin = tmpPath.replace(/\//g,"\\").replace(/\\+$/, "");
+    // Get source duration for clamping
+    var srcDur = (_ffmpeg.fps > 0 && S.scenes.length > 0)
+        ? (S.scenes[S.scenes.length-1].start_sec + S.scenes[S.scenes.length-1].dur_sec)
+        : 999999;
+    for(var i = 0; i < S.scenes.length; i++){
+      var sc      = S.scenes[i];
+      // Snap at 30% into scene — but clamp so we never seek past end
+      var snapRaw = sc.start_sec + sc.dur_sec * 0.3;
+      // Clamp: max = sceneEnd - 1 frame, min = sceneStart
+      var frameTime = 1.0 / (_ffmpeg.fps || 24);
+      var sceneEnd  = sc.start_sec + sc.dur_sec - frameTime;
+      var compSec   = Math.max(sc.start_sec, Math.min(snapRaw, sceneEnd));
+      // Also clamp against source duration
+      compSec       = Math.min(compSec, srcDur - frameTime);
+      compSec       = Math.max(0, compSec);
+      var srcSec    = _calcSourceSec(compSec);
+      srcSec        = Math.max(0, srcSec);
+      var outName   = "sed_ff_" + pad3(i+1) + "_" + Math.round(compSec*1000) + ".jpg";
+      batch.push({
+        idx:     i,
+        seekSec: srcSec,
+        srcPath: _ffmpeg.sourcePath,
+        outPath: tmpWin + "\\" + outName
+      });
+    }
+    return batch;
+  }
+
+  // evalScript wrapper — file-based to avoid escaping issues with Windows paths
+  // Writes batch JSON to a temp file, passes only the file path via evalScript
+  // This avoids ALL issues with backslashes/quotes in path strings
+  //
+  // v8.3: launchFFmpegAllAsync now returns INSTANTLY with {expectedPaths}.
+  // We hand those straight to _startPoller(), which is a setInterval-based
+  // disk-stat loop — fully async, never blocks AE, and injects each
+  // thumbnail the moment its file appears on disk (real-time progress).
+  function _launchAndPoll(fnName, batch, ffPath){
+    // Write batch to temp file — no escaping needed for file path
+    var tmpWin = _ffmpeg.tmpPath.replace(/\//g,"\\").replace(/\\+$/,"");
+    var batchFilePath = tmpWin + "\\sed_batch.json";
+    var batchFilePathFwd = batchFilePath.replace(/\\/g,"/");
+
+    // Write batch JSON to disk
+    try{
+      window.cep.fs.writeFile(batchFilePathFwd, JSON.stringify(batch));
+    }catch(e){
+      _jsLog("thumb","[ERR] Cannot write batch file: "+e.toString());
+      _captureNext(0); return;
+    }
+
+    // Escape only the SHORT file path and ffmpeg path for evalScript
+    // These paths should not contain quotes, so escaping is minimal
+    var pathEsc = batchFilePath.replace(/\\/g,"\\\\");
+    var ffEsc   = ffPath.replace(/\\/g,"\\\\");
+
+    // Use file-based JSX function — reads batch from file
+    var jsFnName = (fnName === "launchFFmpegAllAsync") ? "launchFFmpegFromFile"
+                 : (fnName === "runThumbGenPy")       ? "runThumbGenPyFromFile"
+                 : fnName;
+
+    setStatus(t("thumb_start"),"");
+    evalScript(jsFnName+'("'+pathEsc+'","'+ffEsc+'")', function(rawResult){
+      var res;
+      try{ res = JSON.parse(rawResult); }
+      catch(e){ res = {ok:false, msg:rawResult}; }
+
+      _jsLog("thumb","[LAUNCH RESULT] fn="+fnName+" ok="+(res?res.ok:false)+
+             " async="+(res&&res.async)+
+             " expected="+((res&&res.expectedPaths)?res.expectedPaths.length:0));
+
+      if(!res || !res.ok){
+        _jsLog("thumb","[ERR] "+(res?res.msg:"null")+" → AE fallback");
+        _captureNext(0);
+        return;
+      }
+
+      if(res.async && res.expectedPaths && res.expectedPaths.length){
+        // True fire-and-forget: FFmpeg is running in the background.
+        // _startPoller watches disk and injects thumbnails as they land,
+        // then calls _finishThumbGen() automatically when all are done
+        // (or falls back to AE capture on total stall — see _startPoller).
+        _startPoller(res.expectedPaths);
+        return;
+      }
+
+      // No expected paths at all — nothing to poll for, nothing will ever
+      // complete. Treat as failure and fall back immediately.
+      _jsLog("thumb","[ERR] async response missing expectedPaths → AE fallback");
+      _captureNext(0);
+    });
+  }
+
+
+  // ── Pipeline: Python → FFmpeg concat → FFmpeg per-frame → AE ──
+  _resolvePython(function(pyAvail){
+    _resolveSourceInfo(function(srcOk){
+      _resolveTmpPath(function(tmpPath){
+        _jsLog("thumb","[INFO] python="+pyAvail+" srcOk="+srcOk+" tmp="+tmpPath);
+
+        if(!srcOk || !tmpPath){
+          _jsLog("thumb","[FALLBACK] no src/tmp → AE pipeline");
+          _captureNext(0); return;
+        }
+
+        var batch = _buildBatch(tmpPath);
+
+        if(pyAvail){
+          // Tier 1: Python cv2 — fastest, single VideoCapture
+          _jsLog("thumb","[PIPELINE] Python cv2");
+
+          var _ctrl = {
+            mode:      "python",
+            batch:     batch,
+            pythonExe: _ffmpeg.pyPath
+          };
+          var _ctrlJson = JSON.stringify(_ctrl);
+
+          // Write ctrl file via JSX system temp + cep.fs.writeFile — avoids CEP
+          // bridge overflow that occurs when passing large base64 strings through
+          // evalScript for 300+ scenes. Same file-based approach as FFmpeg path.
+          evalScript("getSystemTempPath()", function(_stRes){
+            var _st;
+            try{ _st = JSON.parse(_stRes); }
+            catch(e){ _st = {ok:false}; }
+            if(!_st || !_st.ok || !_st.path || !window.cep || !window.cep.fs){
+              _jsLog("thumb","[PY] Cannot get sys temp → FFmpeg");
+              _resolveFFmpeg(function(ff){ if(ff) _launchAndPoll("launchFFmpegAllAsync",batch,_ffmpeg.path); else _captureNext(0); });
+              return;
+            }
+            var _ctrlPath = _st.path.replace(/\\/g,"/") + "/sed_thumb_ctrl.json";
+            try{
+              window.cep.fs.writeFile(_ctrlPath, _ctrlJson);
+            }catch(we){
+              _jsLog("thumb","[PY] ctrl writeFile fail: "+(we+"").substring(0,80)+" → FFmpeg");
+              _resolveFFmpeg(function(ff){ if(ff) _launchAndPoll("launchFFmpegAllAsync",batch,_ffmpeg.path); else _captureNext(0); });
+              return;
+            }
+            _jsLog("thumb","[PY CTRL WROTE] path="+_ctrlPath);
+
+            // Run Python — NO parameters in evalScript string
+            // v8.3: runPendingThumb() returns INSTANTLY (fire-and-forget).
+            // Python keeps running in the background; we poll for its
+            // "done" flag file instead of waiting on this evalScript call.
+            evalScript("runPendingThumb()", function(rawResult){
+              var res;
+              try{ res = JSON.parse(rawResult); }
+              catch(e){ res = {ok:false, msg:rawResult}; }
+              _jsLog("thumb","[PY LAUNCH RESULT] ok="+(res?res.ok:false)+" async="+(res&&res.async));
+
+              if(res && res.ok && res.async && res.donePath){
+                _startPyResultPoller(res.donePath, res.resultsPath, res.errPath, batch,
+                  function onPyDone(results){
+                    // Phase 2 already injected all thumbnails progressively.
+                    // Just guard against double-completion.
+                    if(!_thumbGenFinished) _finishThumbGen();
+                  },
+                  function onPyFail(msg){
+                    _jsLog("thumb","[PY FAIL] msg="+msg+" → fallback (partial="+S.thumbDone+")");
+                    if(_thumbCancelled) return;
+                    var remaining = batch.filter(function(b){
+                      return S.thumbs[b.idx] === undefined;
+                    });
+                    if(remaining.length === 0){
+                      if(!_thumbGenFinished) _finishThumbGen();
+                      return;
+                    }
+                    _resolveFFmpeg(function(ffAvail){
+                      if(!ffAvail){
+                        if(S.thumbDone > 0){
+                          if(!_thumbGenFinished) _finishThumbGen();
+                        } else {
+                          _captureNext(0);
+                        }
+                        return;
+                      }
+                      _launchAndPoll("launchFFmpegAllAsync", remaining, _ffmpeg.path);
+                    });
+                  }
+                );
+              } else {
+                _jsLog("thumb","[PY FAIL] msg="+(res&&(res.pyMsg||res.msg)||"unknown")+" → FFmpeg");
+                _resolveFFmpeg(function(ffAvail){
+                  if(!ffAvail){ _captureNext(0); return; }
+                  _launchAndPoll("launchFFmpegAllAsync", batch, _ffmpeg.path);
+                });
+              }
+            });
+          });
+        } else {
+            // No Python — Tier 2: FFmpeg async (concat or per-frame)
+            _resolveFFmpeg(function(ffAvail){
+            _jsLog("thumb","[FFMPEG] available="+ffAvail+" path="+_ffmpeg.path);
+            if(!ffAvail){
+              _jsLog("thumb","[PIPELINE] AE fallback");
+              _captureNext(0); return;
+            }
+            _jsLog("thumb","[PIPELINE] FFmpeg async+poll");
+            _launchAndPoll("launchFFmpegAllAsync", batch, _ffmpeg.path);
+          });
+        }
+      });
+    });
+  });
 }
-// Sequential capture: one scene per CEP bridge call
-// This is the safest approach — each call is independent and within CEP timeout budget
+
+
+// ── Public entry points ───────────────────────────────────
+function startThumbGen(){
+  if(S.thumbLoading){setStatus(t("thumb_gen",{i:"…",n:"…"}),"warn");return;}
+  if(!S.detectDone||!S.scenes.length){setStatus(t("no_detect"),"warn");return;}
+  _doStartThumb();
+}
+// Auto-trigger after detect/readMarkers — no confirm dialog
+function _startThumbAuto(){
+  if(S.thumbLoading) return;
+  if(!S.detectDone||!S.scenes.length) return;
+  _doStartThumb();
+}
+
+// acceptThumbJPG — inject a JPG thumbnail from FFmpeg/Python
+// Called from AE fallback path (PNG files) and legacy code
+function acceptThumbJPG(idx, path, uri){
+  if(!path) return false;
+  S.thumbPaths[idx] = path;
+  S.thumbDone++;
+  setThumbCount(S.thumbDone);
+  var dataURI = _readBase64(path);
+  if(dataURI){
+    S.thumbs[idx] = dataURI;
+    _injectThumbDirect(idx, dataURI, path);
+  } else {
+    S.thumbs[idx] = uri || filePathToURI(path);
+    _injectThumb(idx, S.thumbs[idx], path);
+  }
+  return true;
+}
+
+// _readBase64(path) — read file from disk as base64 data URI synchronously
+// Uses cep.fs.readFile — the only reliable way in AE CEP panels
+function _readBase64(path){
+  if(!path) return "";
+  var isJpg = /\.jpe?g$/i.test(path);
+  var mime  = isJpg ? "image/jpeg" : "image/png";
+  var np    = path.replace(/\\/g, "/");
+  try{
+    if(window.cep && window.cep.fs && window.cep.encoding){
+      var r = window.cep.fs.readFile(np, window.cep.encoding.Base64);
+      if(r && r.err === 0 && r.data && r.data.length > 50){
+        return "data:" + mime + ";base64," + r.data;
+      }
+    }
+  }catch(e){}
+  try{
+    if(typeof require === "function"){
+      var fs = require("fs");
+      if(fs && fs.existsSync(path)){
+        return "data:" + mime + ";base64," + fs.readFileSync(path).toString("base64");
+      }
+    }
+  }catch(e2){}
+  return "";
+}
+
+// _injectThumbDirect — inject pre-loaded data URI, no async loading needed
+function _injectThumbDirect(idx, dataURI, path){
+  var card = document.querySelector(".scene-card[data-idx=\'"+idx+"\']");
+  if(!card) return;
+  var wrap = card.querySelector(".card-img-wrap");
+  if(!wrap) return;
+  wrap.innerHTML = "";
+  wrap.classList.remove("card-img-ph");
+  var img = document.createElement("img");
+  img.alt = "";
+  img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
+  img.src = dataURI;
+  // Do NOT delete temp files here — keep them until user clicks Clean Tmp
+  // This allows thumbnails to survive panel reload/refresh
+  wrap.appendChild(img);
+  var num = card.querySelector(".card-thumb-num");
+  if(num) num.style.display = "none";
+}
+
+
+// Sequential AE capture (existing fallback — unchanged)
 var _thumbFailStreak=0;
 function _captureNext(i){
   if(i>=S.scenes.length){_finishThumbGen();return;}
   var sc=S.scenes[i];
-  setThumbProgress((i+1)+"/"+S.scenes.length);
+  setThumbProgress(i+1, S.scenes.length);
   callHost("captureSceneFrames",[sc.start_sec,sc.dur_sec,i,S.customTmpPath],function(res){
     if(res&&res.ok){
       _thumbFailStreak=0;
       acceptThumb(i,res);
     } else {
       _thumbFailStreak++;
-      if(_thumbFailStreak===3) setStatus("Thumbs failing — check Settings → Temp Folder","warn");
+      if(_thumbFailStreak===3) setStatus(t("thumb_failing"),"warn");
     }
+    setThumbProgress(S.thumbDone, S.scenes.length);
     setTimeout(function(){ _captureNext(i+1); }, 0);
   });
 }
 function _finishThumbGen(){
+  if(_thumbCancelled) return;
+  if(_thumbGenFinished) return;
+  _thumbGenFinished = true;
   S.thumbLoading=false;
   _thumbFailStreak=0;
   $("thumb-btn").classList.remove("loading");
+  $("thumb-cancel-btn").style.display = "none";
   setThumbProgress(null);
+  _jsLog("thumb","[FINISH] done="+S.thumbDone+"/"+S.scenes.length);
   if(S.thumbDone===0){
-    setStatus("Thumbs failed — check Settings → Temp Folder","warn");
+    setStatus(t("thumb_fail"),"warn");
+    // Auto-run diagnostics and show result
+    _showThumbDiag();
   } else if(S.thumbDone<S.scenes.length){
     setStatus(t("thumb_done",{ok:S.thumbDone,n:S.scenes.length})+" ("+S.thumbDone+"/"+S.scenes.length+")","warn");
   } else {
     setStatus(t("thumb_done",{ok:S.thumbDone,n:S.scenes.length}),"ok");
   }
+}
+
+function _showThumbDiag(){
+  callHost("getThumbDiagnostics",[S.customTmpPath],function(res){
+    if(!res) return;
+    var lines = [];
+    lines.push("═══ SED Panel — Thumb Diagnostics ═══");
+    lines.push("");
+    lines.push("AE Version    : " + (res.aeVersion||"?"));
+    lines.push("Comp          : " + (res.compInfo||"(no active comp)"));
+    lines.push("");
+    lines.push("─ Temp Folder ─");
+    lines.push("Path          : " + (res.tempFolder||"?"));
+    lines.push("Exists        : " + res.tempFolderExists);
+    lines.push("Writable      : " + res.tempFolderWritable);
+    lines.push("");
+    lines.push("─ Source File ─");
+    lines.push("Path          : " + (res.sourceFile||"(not found)"));
+    lines.push("Exists on disk: " + res.sourceFileExists);
+    lines.push("");
+    lines.push("─ FFmpeg ─");
+    lines.push("Path          : " + (res.ffmpegPath||"(not found)"));
+    lines.push("Tier          : " + (res.ffmpegTier||0) + (res.ffmpegTier===1?" (system PATH)":res.ffmpegTier===2?" (bundled)":""));
+    lines.push("Available     : " + res.ffmpegExists);
+    if(res.ffmpegLog && res.ffmpegLog.length){
+      lines.push("Search log    :");
+      res.ffmpegLog.forEach(function(l){ lines.push("  " + l); });
+    }
+    if(res.errors && res.errors.length){
+      lines.push("");
+      lines.push("─ Errors ─");
+      res.errors.forEach(function(e){ lines.push("  ✗ " + e); });
+    }
+    lines.push("");
+    lines.push("─ Log Files ─");
+    lines.push("Folder: " + (res.logFolder||"?"));
+    lines.push("");
+    lines.push("Tip: If FFmpeg not found, put ffmpeg.exe inside:");
+    lines.push("  [CEP folder]\\com.heosan.sedpanel\\ffmpeg\\ffmpeg.exe");
+    alert(lines.join("\n"));
+  });
 }
 function _injectThumb(idx,uri,path){
   var card=document.querySelector(".scene-card[data-idx='"+idx+"']"); if(!card) return;
@@ -432,11 +1200,9 @@ function _injectThumb(idx,uri,path){
   img.alt="";
   img.style.cssText="width:100%;height:100%;object-fit:cover;display:block;";
   if(path){
-    // onload: delete temp file after browser has loaded it into memory
-    img.onload=function(){
-      try{ if(window.cep&&window.cep.fs) window.cep.fs.deleteFile(path); }catch(e){}
-    };
-    // onerror: file:// failed (rare), fallback to cep.fs base64
+    var isJpg = /\.jpe?g$/i.test(path);
+    // No deletion on load — files kept until user clicks Clean Tmp
+    img.onload = function(){};
     img.onerror=function(){
       if(img.dataset.fallback==="1") return;
       img.dataset.fallback="1";
@@ -444,7 +1210,7 @@ function _injectThumb(idx,uri,path){
       if(data) img.src=data;
     };
   }
-  img.src=uri; // set AFTER attaching handlers
+  img.src=uri;
   wrap.appendChild(img);
   var num=card.querySelector(".card-thumb-num"); if(num) num.style.display="none";
 }
@@ -620,20 +1386,55 @@ $("ob-lang-id").addEventListener("click",function(){switchLang("id");});
 
 // Diag
 $("diag-btn").addEventListener("click",function(){
-  setStatus("Running diagnostics…","");
-  callHost("getDiagnostics",[S.customTmpPath],function(res){
-    if(!res.ok){setStatus("Diag error: "+(res.msg||""),"err");return;}
-    S.diagInfo=res.info||{};
-    var info=S.diagInfo;
-    var tpls=info.templates||[];
-    setStatus("AE "+info.aeVersion,"ok");
-    alert(
-      "SED Panel — AE Diagnostics\n\n"+
-      "AE Version:    "+info.aeVersion+"\n"+
-      "Temp folder:   "+info.tempFolder+"\n"+
-      "Comp:          "+(info.compName||"?")+"\n\n"+
-      "Output Templates:\n"+(tpls.length?tpls.map(function(t,i){return "  "+(i+1)+". "+t;}).join("\n"):"  (none)")
-    );
+  setStatus("Running diagnostics… (may take 5-10s)","");
+  // Pass current known paths for testing
+  var ffPath = _ffmpeg.path || "";
+  var pyPath = _ffmpeg.pyPath || "";
+  callHost("getFullDiagnostics",[S.customTmpPath, pyPath, ffPath], function(res){
+    if(!res){ setStatus("Diagnostics failed","warn"); return; }
+
+    var lines = [];
+    lines.push("═══ SED Panel v2.2 — Full Diagnostics ═══");
+    lines.push("");
+    lines.push("AE Version    : " + (res.aeVersion||"?"));
+    lines.push("");
+    lines.push("─ Temp Folder ─────────────────────────");
+    lines.push("Path     : " + (res.tmpPath||"?"));
+    lines.push("Exists   : " + res.tmpExists + "  Writable: " + res.tmpWritable);
+    if(res.tmpWriteError) lines.push("Error    : " + res.tmpWriteError);
+    lines.push("");
+    lines.push("─ Source File ──────────────────────────");
+    lines.push("Path     : " + (res.sourceFile||"(not found)"));
+    lines.push("Exists   : " + res.sourceExists);
+    lines.push("");
+    lines.push("─ Python ───────────────────────────────");
+    lines.push("Path     : " + (res.pythonExe||"(not found)"));
+    lines.push("Exists   : " + res.pythonExists + "  Runs: " + res.pythonRunsOk);
+    lines.push("Version  : " + (res.pythonVersion||"?"));
+    lines.push("cv2      : " + (res.cv2Available ? "✓ "+res.cv2Version : "✗ NOT INSTALLED"));
+    if(res.cv2Error) lines.push("cv2 err  : " + res.cv2Error);
+    lines.push("thumb_gen: " + (res.thumbGenPyExists ? "✓ "+res.thumbGenPyPath : "✗ NOT FOUND"));
+    lines.push("Plugin root: " + (res.pluginRootFromDollar||"?"));
+    if(res.pythonRunError) lines.push("Run err  : " + res.pythonRunError);
+    lines.push("");
+    lines.push("─ FFmpeg ───────────────────────────────");
+    lines.push("Path     : " + (res.ffmpegPath||"?"));
+    lines.push("Exists   : " + res.ffmpegExists + "  Runs: " + res.ffmpegRunsOk);
+    lines.push("Version  : " + (res.ffmpegVersion||"?").substring(0,60));
+    if(res.ffmpegRunError) lines.push("Error    : " + res.ffmpegRunError);
+    lines.push("");
+    lines.push("─ Logs ─────────────────────────────────");
+    lines.push("Folder   : " + (res.logFolder||"?"));
+    lines.push("");
+    if(res.errors && res.errors.length){
+      lines.push("─ Errors ───────────────────────────────");
+      res.errors.forEach(function(e){ lines.push("  ✗ "+e); });
+      lines.push("");
+    }
+    lines.push(res.ok ? "✓ All systems OK" : "✗ Issues detected — see errors above");
+
+    setStatus(res.ok ? "Diagnostics OK" : "Issues found — see popup","" + (res.ok?"ok":"warn"));
+    alert(lines.join("\n"));
   });
 });
 
@@ -660,18 +1461,24 @@ $("detect-btn").addEventListener("click",function(){
     $("status-dot").classList.remove("loading");
     if(!res.ok){setStatus(res.msg||"Failed.","warn");return;}
     _applyScenes(res);
-    setStatus("✓ "+S.scenes.length+" scenes — "+(res.layerName||"—"),"ok");
+    setStatus(t("scene_count",{n:S.scenes.length,layer:res.layerName||"—"}),"ok");
     if(S.scenes.length>0) _startThumbAuto();
   });
 });
 $("read-btn").addEventListener("click",function(){
+  _readCancelled = false;
+  $("read-btn").classList.add("loading");
+  $("read-cancel-btn").style.display = "";
   setStatus(t("reading"),"");
   $("status-dot").classList.add("loading");
   callHost("readMarkers",[],function(res){
+    $("read-btn").classList.remove("loading");
+    $("read-cancel-btn").style.display = "none";
     $("status-dot").classList.remove("loading");
-    if(!res.ok){setStatus(res.msg||"No markers.","warn");return;}
+    if(_readCancelled) return;
+    if(!res.ok){setStatus(res.msg||t("no_markers"),"warn");return;}
     _applyScenes(res);
-    setStatus("✓ "+S.scenes.length+" scenes from markers","ok");
+    setStatus(t("scene_from_markers",{n:S.scenes.length}),"ok");
     if(S.scenes.length>0) _startThumbAuto();
   });
 });
@@ -772,6 +1579,168 @@ $("comp-mrkr-btn").addEventListener("click",function(){
     setStatus(t("markers_added",{n:res.count}),"ok");
   });
 });
+
+// ═══ Merge Scene (v8.3) ═════════════════════════════════
+// Combines 2+ ADJACENT selected scenes into a single scene + single
+// AE marker. Non-adjacent picks are skipped automatically; if NOTHING
+// in the selection is adjacent, a warning modal is shown and nothing
+// happens. Multiple separate adjacent groups can merge in one click
+// (e.g. scenes 1,2 AND 5,6,7 selected together → two independent merges).
+
+// _groupAdjacentSelection() — splits S.selected into clusters of
+// consecutive scene indices (e.g. [0,1,4,5,6,9] → [[0,1],[4,5,6],[9]]).
+// Returns ALL clusters (including singletons) sorted ascending —
+// caller decides what to do with clusters of length 1 (skip them).
+function _groupAdjacentSelection(){
+  var sorted = S.selected.slice().sort(function(a,b){ return a-b; });
+  var clusters = [];
+  var current = [];
+  for(var i=0;i<sorted.length;i++){
+    var idx = sorted[i];
+    if(current.length===0 || idx === current[current.length-1]+1){
+      current.push(idx);
+    } else {
+      clusters.push(current);
+      current = [idx];
+    }
+  }
+  if(current.length) clusters.push(current);
+  return clusters;
+}
+
+function _showMergeModal(msg){
+  var modal = $("merge-overlay");
+  var msgEl = $("merge-modal-msg");
+  if(msgEl) msgEl.textContent = msg;
+  if(modal) modal.classList.remove("hidden");
+}
+function _hideMergeModal(){
+  var modal = $("merge-overlay");
+  if(modal) modal.classList.add("hidden");
+}
+_on("merge-modal-close","click",_hideMergeModal);
+_on("merge-overlay","click",function(e){
+  if(e.target===$("merge-overlay")) _hideMergeModal();
+});
+
+$("merge-btn").addEventListener("click",function(){
+  if(!S.detectDone||S.scenes.length<2){setStatus(t("no_detect"),"warn");return;}
+  if(S.selected.length<2){
+    _showMergeModal(t("merge_need_2"));
+    return;
+  }
+
+  var clusters = _groupAdjacentSelection();
+  var mergeable = clusters.filter(function(c){ return c.length>=2; });
+  var skipped   = clusters.filter(function(c){ return c.length===1; })
+                          .map(function(c){ return "#"+pad3(S.scenes[c[0]].index); });
+
+  if(mergeable.length===0){
+    // Nothing adjacent at all — explicit warning, no action taken
+    _showMergeModal(t("merge_need_adjacent"));
+    return;
+  }
+
+  // Build human-readable confirm summary across all groups being merged
+  var totalScenesInvolved = 0;
+  var rangeDescs = mergeable.map(function(c){
+    totalScenesInvolved += c.length;
+    var from = S.scenes[c[0]].index, to = S.scenes[c[c.length-1]].index;
+    return from===to ? ("#"+pad3(from)) : ("#"+pad3(from)+"–#"+pad3(to));
+  });
+
+  var confirmMsg = mergeable.length === 1
+    ? t("merge_confirm",{
+        n: totalScenesInvolved,
+        from: rangeDescs[0].replace(/^#/,"").split("–")[0],
+        to:   rangeDescs[0].replace(/^#/,"").split("–").pop()
+      })
+    : t("merge_confirm_multi",{
+        n: totalScenesInvolved,
+        groups: mergeable.length
+      });
+  if(skipped.length){
+    confirmMsg += "\n\n" + t("merge_partial_skip",{skipped: skipped.join(", ")});
+  }
+  if(!confirm(confirmMsg)) return;
+
+  // Build the groups payload exactly as host.jsx expects: array of groups,
+  // each group = array of scene records (ascending order already guaranteed
+  // by _groupAdjacentSelection's sort).
+  var groupsPayload = mergeable.map(function(c){
+    return c.map(function(idx){ return S.scenes[idx]; });
+  });
+
+  $("merge-btn").classList.add("merging");
+  $("merge-btn").disabled = true;
+  setStatus(t("merging"),"");
+
+  callHost("mergeScenes",[JSON.stringify(groupsPayload)],function(res){
+    $("merge-btn").classList.remove("merging");
+    $("merge-btn").disabled = false;
+
+    if(!res||!res.ok){
+      setStatus(res&&res.msg || t("merge_fail"),"err");
+      return;
+    }
+
+    // ── Remap thumbnails & selection onto the new scene list ──
+    // Per merge group, the new merged scene re-uses the THUMBNAIL of the
+    // FIRST scene in that group (fast — no re-render needed). Scenes
+    // outside any merged group keep their original thumbnail unchanged.
+    // Matching old→new scenes is done by start_sec, since indices shift
+    // after markers are removed and AE re-numbers everything.
+    var oldScenes = S.scenes;
+    var newScenes = res.scenes || [];
+
+    // For each old scene index, determine which NEW scene (by start_sec
+    // range) it now belongs to, and whether it was the "first" scene of
+    // its merge group (i.e. the one whose thumbnail should carry over).
+    var newThumbs={}, newPaths={}, newDone=0;
+    var newSelected=[];
+
+    newScenes.forEach(function(nsc, newIdx){
+      // Find ALL old scenes whose start_sec falls inside this new scene's
+      // [start_sec, end_sec) range — for an unmerged scene there's exactly
+      // one; for a merged group there are 2+ (the group's original members).
+      // The FIRST one found (lowest start_sec) is the "donor" whose
+      // thumbnail carries over to the merged scene.
+      var donorOldIdx = -1;
+      var coveredOld = 0;
+      var anySelectedInRange = false;
+      for(var oi=0; oi<oldScenes.length; oi++){
+        var osc = oldScenes[oi];
+        if(osc.start_sec >= nsc.start_sec - 0.001 && osc.start_sec < nsc.end_sec - 0.0005){
+          if(donorOldIdx===-1) donorOldIdx = oi; // first match = earliest old scene = group head
+          coveredOld++;
+          if(S.selected.indexOf(oi)>=0) anySelectedInRange = true;
+        }
+      }
+      if(donorOldIdx>=0 && S.thumbs[donorOldIdx]){
+        newThumbs[newIdx]=S.thumbs[donorOldIdx];
+        if(S.thumbPaths[donorOldIdx]) newPaths[newIdx]=S.thumbPaths[donorOldIdx];
+        newDone++;
+      }
+      // Auto-select/mark newly merged scenes so they're ready for
+      // immediate export/cut. A "merged" scene is one whose donor range
+      // spans 2+ original scenes (a real merge happened here).
+      var spanIsMerge = coveredOld >= 2;
+      if(spanIsMerge || anySelectedInRange) newSelected.push(newIdx);
+    });
+
+    S.scenes = newScenes;
+    S.thumbs = newThumbs; S.thumbPaths = newPaths; S.thumbDone = newDone;
+    S.selected = newSelected;
+    S.activeIdx = -1;
+    setThumbCount(newDone);
+    refreshAll();
+
+    setStatus(t("merge_ok",{groups:res.groupsMerged, total:S.scenes.length}),"ok");
+    _jsLog("thumb","[MERGE] groups="+res.groupsMerged+" removedMarkers="+res.removedMarkers+" total="+S.scenes.length);
+  });
+});
+
+
 $("export-btn").addEventListener("click",function(){
   if(!S.detectDone){setStatus(t("no_detect"),"warn");return;}
   if(!S.selected.length){setStatus(t("no_mark"),"warn");return;}
@@ -787,11 +1756,34 @@ $("thumb-btn").addEventListener("click",function(){
   if(!S.detectDone||!S.scenes.length){setStatus(t("no_detect"),"warn");return;}
   startThumbGen();
 });
+// Shared cancel logic — triggered from sidebar ✕ button OR popup modal Cancel button
+function _cancelThumbGen(){
+  if(!S.thumbLoading) return;
+  _thumbCancelled = true;
+  S.thumbLoading  = false;
+  $("thumb-btn").classList.remove("loading");
+  $("thumb-cancel-btn").style.display = "none";
+  _stopPoller();
+  _hideThumbProgressModal();
+  setStatus(t("thumb_cancelled"),"warn");
+  _jsLog("thumb","[CANCELLED] user cancelled thumb gen");
+}
+$("thumb-cancel-btn").addEventListener("click",_cancelThumbGen);
+_on("thumb-progress-cancel","click",_cancelThumbGen);
+$("read-cancel-btn").addEventListener("click",function(){
+  _readCancelled = true;
+  $("read-btn").classList.remove("loading");
+  $("read-cancel-btn").style.display = "none";
+  setStatus(t("read_cancelled"),"warn");
+  _jsLog("thumb","[CANCELLED] user cancelled read markers");
+});
 $("clean-btn").addEventListener("click",function(){
   if(!confirm(t("confirm_clean")))return;
   callHost("cleanTempFolder",[S.customTmpPath],function(res){
     setStatus(t("clean_ok",{n:res.deleted||0}),"ok");
     S.thumbs={}; S.thumbPaths={}; S.thumbDone=0; setThumbCount(0); refreshGrid();
+    // Reset FFmpeg tmp path cache so next session re-resolves
+    _ffmpeg.tmpPath=""; _ffmpeg.srcInfoDone=false;
   });
 });
 
@@ -1014,20 +2006,34 @@ function refreshGrid(){
 // ── AE Version check: called once on startup ──────────────
 var S_aeVer={num:0,name:'',sedSupport:false,checked:false};
 function checkAEVersion(){
-  // Wrap in try/catch — if host.jsx not loaded yet, fail silently
-  // Default: assume sedSupport=true so detect btn shows (safe fallback)
-  try{
-    callHost('getAEVersion',[],function(res){
-      try{
-        if(!res||!res.ok){ S_aeVer.checked=true; applyAECompat(); return; }
-        S_aeVer.num=res.num||0;
-        S_aeVer.name=res.name||'';
-        S_aeVer.sedSupport=!!res.sedSupport;
-        S_aeVer.checked=true;
-        applyAECompat();
-      }catch(e2){ S_aeVer.checked=true; applyAECompat(); }
-    });
-  }catch(e){ S_aeVer.checked=true; applyAECompat(); }
+  // AE may not be fully initialized when panel first loads.
+  // If version=0, retry up to 3 times with 1s delay.
+  var _retries = 0;
+  function _doCheck(){
+    try{
+      callHost("getAEVersion",[],function(res){
+        try{
+          if(!res||!res.ok){
+            if(_retries++ < 3){ setTimeout(_doCheck, 1000); return; }
+            S_aeVer.checked=true; applyAECompat(); return;
+          }
+          var num = res.num||0;
+          if(num === 0 && _retries++ < 3){
+            // Version 0 = AE not ready yet, retry
+            setTimeout(_doCheck, 1000); return;
+          }
+          S_aeVer.num      = num;
+          S_aeVer.major    = res.major||0;
+          S_aeVer.name     = res.name||"";
+          S_aeVer.sedSupport = !!(res.sedSupport || num >= 22);
+          S_aeVer.checked  = true;
+          applyAECompat();
+        }catch(e2){ S_aeVer.checked=true; applyAECompat(); }
+      });
+    }catch(e){ S_aeVer.checked=true; applyAECompat(); }
+  }
+  // Delay first check by 500ms to let AE finish loading
+  setTimeout(_doCheck, 500);
 }
 function applyAECompat(){
   var btn=$('detect-btn');
@@ -1055,9 +2061,96 @@ function _ready(){
   });
   checkAEVersion();
   setStatus(t("status_idle"),"ok");
-  // ResizeObserver: collapse IN/OUT/DUR row saat panel < 50% lebar awal
   _initTopbarCollapse();
+  _diagButtons();
+  _initPanelVisibility();
   setTimeout(_checkUpdate, 2000);
+}
+
+// Prevent panel going blank when other CEP panels are closed/opened.
+// CEP shares one Chromium renderer — other panels can disturb the DOM.
+function _initPanelVisibility(){
+  // Ensure body and root are always visible
+  document.body.style.visibility = "visible";
+  document.body.style.display    = "block";
+
+  // CSInterface visibility events
+  try{
+    var cs = new CSInterface();
+    // Re-render when panel regains focus
+    cs.addEventListener("com.adobe.csxs.events.panelShown", function(){
+      document.body.style.visibility = "visible";
+      document.body.style.display    = "block";
+      // Re-inject thumbnails from memory if they were cleared
+      if(S.thumbDone > 0 && Object.keys(S.thumbs).length > 0){
+        _restoreThumbsFromMemory();
+      }
+    });
+    // Monitor visibility via Page Visibility API
+    document.addEventListener("visibilitychange", function(){
+      if(document.visibilityState === "visible"){
+        document.body.style.visibility = "visible";
+        // Restore thumbs if grid is empty but memory has data
+        if(S.thumbDone > 0){
+          setTimeout(_restoreThumbsFromMemory, 100);
+        }
+      }
+    });
+  }catch(e){}
+
+  // Periodic check: if panel appears blank, restore it
+  setInterval(function(){
+    if(document.body.style.display === "none" ||
+       document.body.style.visibility === "hidden"){
+      document.body.style.display    = "block";
+      document.body.style.visibility = "visible";
+    }
+  }, 2000);
+}
+
+// Restore thumbnails from S.thumbs memory after panel DOM is reset
+function _restoreThumbsFromMemory(){
+  var keys = Object.keys(S.thumbs);
+  if(!keys.length) return;
+  (function restoreOne(ki){
+    if(ki >= keys.length) return;
+    var idx    = parseInt(keys[ki]);
+    var dataURI = S.thumbs[idx];
+    if(dataURI){
+      var card = document.querySelector(".scene-card[data-idx='"+idx+"']");
+      if(card){
+        var wrap = card.querySelector(".card-img-wrap");
+        if(wrap && !wrap.querySelector("img")){
+          _injectThumbDirect(idx, dataURI, S.thumbPaths[idx]||"");
+        }
+      }
+    }
+    setTimeout(function(){ restoreOne(ki+1); }, 0);
+  })(0);
+}
+
+function _diagButtons(){
+  var btns = ["thumb-btn","thumb-cancel-btn","read-btn","read-cancel-btn",
+              "detect-btn","clean-btn","diag-btn",
+              "split-all-btn","split-sel-btn","keep-sel-btn","export-btn"];
+  var missing = [];
+  btns.forEach(function(id){
+    if(!$(id)) missing.push(id);
+  });
+  // Log critical functions
+  var missingFns = [];
+  var fns = ["startThumbGen","_startThumbAuto","acceptThumbJPG","_doStartThumb",
+             "_startPoller","_stopPoller","_captureNext","_finishThumbGen"];
+  fns.forEach(function(fn){
+    try{ if(typeof eval(fn) !== "function") missingFns.push(fn); }
+    catch(e){ missingFns.push(fn+"(err)"); }
+  });
+  var msg = "[BUTTONS] missing_els=["+missing.join(",")+
+            "] missing_fns=["+missingFns.join(",")+"]";
+  _jsLog("diag", msg);
+  if(missing.length || missingFns.length){
+    setStatus("WARN: missing UI/fn — check diag log","warn");
+  }
 }
 
 function _initTopbarCollapse(){

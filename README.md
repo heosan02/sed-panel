@@ -7,7 +7,11 @@
 - **Automatic Scene Detection** â€” Detect cuts in video layers via AE's native Scene Edit Detection (AE 2022+) or manual markers
 - **Read Markers** â€” Read existing layer markers from AE's built-in detection
 - **Scene Navigation** â€” Browse scenes via grid or list view with transport controls (â® â—€ â–¶ â­)
-- **Thumbnail Preview** â€” Generate preview thumbnails via AE saveFrameToPng
+- **Thumbnail Preview** â€” Generate preview thumbnails via FFmpeg (fast), Python cv2, or AE saveFrameToPng
+- **FFmpeg Thumbnail Pipeline** â€” Fast batch thumbnail extraction via FFmpeg with progress tracking
+- **Python cv2 Fallback** â€” Automatic fallback to cv2 if FFmpeg unavailable
+- **Thumbnail Progress Modal** â€” Visual progress bar, count, ETA, cancel button
+- **Merge Scenes** â€” Combine adjacent scenes into a single marker
 - **Cut Layer** â€” Split video layer at all cut points or selected scenes only
 - **Delete Except Selected** â€” Keep only marked scenes, remove the rest
 - **Export to Render Queue** â€” Export marked scenes as separate compositions with correct Work Areas
@@ -17,7 +21,7 @@
 ## Installation
 
 ### Option 1 â€” Inno Setup Installer
-Download `SED_Panel_v2.1_Setup.exe` from [Releases](https://github.com/heosan02/sed-panel/releases), run it, and follow the instructions.
+Download `SED_Panel_v2.2_Setup.exe` from [Releases](https://github.com/heosan02/sed-panel/releases), run it, and follow the instructions.
 
 ### Option 2 â€” Manual Installation
 1. Download the source from the latest release
@@ -29,6 +33,8 @@ Download `SED_Panel_v2.1_Setup.exe` from [Releases](https://github.com/heosan02/
 
 - Adobe After Effects 2022 (v22.0) through 2026 (v26.0)
 - Windows 10/11 (macOS support via manual install)
+- FFmpeg (optional, for fast thumbnail generation)
+- Python 3.13+ (optional, for cv2 thumbnail fallback)
 
 ## Usage
 
@@ -36,7 +42,7 @@ Download `SED_Panel_v2.1_Setup.exe` from [Releases](https://github.com/heosan02/
 2. Click **DETECT SCENES** (AE 2022+) or use Layer â†’ Scene Edit Detection â†’ Create Layer Markers, then click **Read Markers**
 3. Browse scenes, mark selections with Ctrl+Click or double-click
 4. Generate thumbnails with ðŸ–¼ **Thumbs**
-5. Use action buttons: Cut, Keep Only, Add Comp Markers, Export to Render Queue
+5. Use action buttons: Cut, Keep Only, Merge, Add Comp Markers, Export to Render Queue
 
 ## License
 

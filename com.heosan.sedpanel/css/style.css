@@ -1,3 +1,9 @@
+/* ══ Panel isolation — prevent other CEP panels affecting our styles ══ */
+html, body {
+  isolation: isolate;
+  visibility: visible !important;
+  display: block !important;
+}
 /* ═══════════════════════════════════════════════════════
    SED Panel v7.0 — style.css
    Design: Linear-inspired · Sharp · Minimal · Dark
@@ -294,19 +300,74 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 
 /* ── Read Markers ── */
-.btn-read {
-  width: 100%;
-  padding: 6px 10px;
-  background: transparent;
-  border: 1px solid var(--border2);
-  border-radius: var(--r);
-  color: var(--text2);
-  font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 500;
-  transition: var(--t-fast);
+/* ── Read Markers — same visual language as Thumbs ── */
+.btn-row-read {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
 }
-.btn-read:hover { border-color: var(--border3); color: var(--text); background: var(--bg3); }
+.btn-read {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 8px;
+  background: rgba(94,106,210,.18);
+  border: 1px solid rgba(94,106,210,.30);
+  border-radius: var(--r);
+  color: #a0a8e8;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast);
+  white-space: nowrap;
+}
+.btn-read::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.05) 0%, transparent 60%);
+  pointer-events: none;
+}
+.btn-read:hover {
+  background: rgba(94,106,210,.28);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(94,106,210,.3), 0 3px 8px rgba(58,64,153,.3);
+  transform: translateY(-1px);
+}
+.btn-read:active { transform: translateY(0); box-shadow: none; }
+.btn-read.loading {
+  border-color: var(--accent);
+  animation: pulse-accent .8s ease-in-out infinite alternate;
+}
+@keyframes pulse-accent { from{opacity:.5} to{opacity:1} }
+
+/* ── Cancel button (shared by Read and Thumbs rows) ── */
+.btn-cancel-side {
+  flex: 0 0 auto;
+  width: 26px;
+  padding: 0;
+  background: rgba(229,72,77,.15);
+  border: 1px solid rgba(229,72,77,.25);
+  border-radius: var(--r);
+  color: var(--danger);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--t-fast);
+  line-height: 1;
+}
+.btn-cancel-side:hover {
+  background: rgba(229,72,77,.28);
+  border-color: var(--danger);
+  color: #fff;
+}
 
 /* ── Thumb row ── */
 .btn-row-thumb {
@@ -342,6 +403,59 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   color: var(--text3);
 }
 .btn-clean-side:hover { border-color: var(--border3); color: var(--text2); }
+
+/* ── Merge Scene row ── */
+.btn-row-merge {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+.btn-merge-side {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 8px;
+  background: rgba(94,106,210,.10);
+  border: 1px solid rgba(94,106,210,.22);
+  border-radius: var(--r);
+  color: #9aa1e0;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+  white-space: nowrap;
+}
+.btn-merge-side::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.05) 0%, transparent 60%);
+  pointer-events: none;
+}
+.btn-merge-side:hover {
+  background: rgba(94,106,210,.20);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(94,106,210,.25), 0 3px 8px rgba(58,64,153,.28);
+  transform: translateY(-1px);
+}
+.btn-merge-side:active { transform: translateY(0); box-shadow: none; }
+.btn-merge-side:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none;
+}
+.btn-merge-side.merging {
+  border-color: var(--accent);
+  animation: pulse-accent .8s ease-in-out infinite alternate;
+}
 
 /* ── Stats row ── */
 #stats-row {
@@ -1258,6 +1372,137 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   transition: var(--t-fast);
 }
 #settings-close:hover { background: #6672d8; }
+
+/* ════════════════════════════════════════════════════
+   THUMBNAIL PROGRESS MODAL
+   Shown every time thumbnail generation runs — keeps AE
+   responsive (non-blocking pipeline) while giving the user
+   a clear visual 1/N → N/N progress indicator.
+════════════════════════════════════════════════════ */
+#thumb-progress-modal {
+  background: var(--bg1);
+  border: 1px solid var(--border2);
+  border-radius: var(--r3);
+  padding: 26px 24px 20px;
+  width: 280px;
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04) inset;
+  position: relative;
+  animation: modal-in .18s cubic-bezier(.2,.8,.3,1);
+}
+#thumb-progress-icon {
+  font-size: 28px;
+  line-height: 1;
+  margin-bottom: 8px;
+  animation: thumb-icon-bob 1.4s ease-in-out infinite;
+}
+@keyframes thumb-icon-bob {
+  0%,100% { transform: translateY(0); }
+  50%     { transform: translateY(-3px); }
+}
+#thumb-progress-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .2px;
+  margin-bottom: 14px;
+}
+#thumb-progress-bar-track {
+  width: 100%;
+  height: 6px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+#thumb-progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent2), var(--accent));
+  border-radius: 99px;
+  transition: width .15s ease-out;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+#thumb-progress-count {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: .3px;
+  margin-bottom: 6px;
+}
+#thumb-progress-sub {
+  font-size: 10px;
+  color: var(--text3);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+#thumb-progress-cancel {
+  display: block;
+  margin: 0 auto;
+  width: 100%;
+  padding: 7px 0;
+  background: var(--danger2);
+  border: 1px solid rgba(229,72,77,.3);
+  border-radius: var(--r);
+  color: var(--danger);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  transition: var(--t-fast);
+}
+#thumb-progress-cancel:hover { background: rgba(229,72,77,.25); border-color: var(--danger); color: #fff; }
+
+/* ════════════════════════════════════════════════════
+   MERGE SCENE — WARNING / INFO MODAL
+   Reuses #about-modal-style sizing for visual consistency.
+════════════════════════════════════════════════════ */
+#merge-modal {
+  background: var(--bg1);
+  border: 1px solid var(--border2);
+  border-radius: var(--r3);
+  padding: 24px 22px 18px;
+  width: 290px;
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04) inset;
+  position: relative;
+  animation: modal-in .18s cubic-bezier(.2,.8,.3,1);
+}
+#merge-modal-icon {
+  font-size: 26px;
+  line-height: 1;
+  margin-bottom: 8px;
+  color: var(--warn);
+}
+#merge-modal-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .2px;
+  margin-bottom: 10px;
+}
+#merge-modal-msg {
+  font-size: 11px;
+  color: var(--text2);
+  line-height: 1.65;
+  margin-bottom: 16px;
+  white-space: pre-line;
+}
+#merge-modal-close {
+  display: block;
+  margin: 0 auto;
+  padding: 7px 28px;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--r);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  transition: var(--t-fast);
+}
+#merge-modal-close:hover { background: #6672d8; }
 
 /* ════════════════════════════════════════════════════
    ONBOARDING
