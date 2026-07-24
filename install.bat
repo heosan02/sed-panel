@@ -4,13 +4,13 @@ title SED Panel CEP v3.2 - Installer
 
 echo.
 echo  =====================================================
-echo   SED Panel CEP  v3.2  ^|  Auto Installer  ^(Multi-Layer^)
-echo   Multi-Layer Read Markers  ^|  Thumbnail Multi-Layer  ^|  Merge Cut Layers
+echo   SED Panel CEP  v3.2  ^|  Auto Installer    ^(Multi-Layer^)
+  Multi-Layer Read Markers  ^|  Thumbnail Multi-Layer  ^|  Merge Cut Layers
 echo   (c) 2026 Heosan
 echo  =====================================================
 echo.
 
-:: ── Pastikan berjalan dari folder yang benar ──────────────
+:: -- Pastikan berjalan dari folder yang benar -------------
 if not exist "%~dp0com.heosan.sedpanel\CSXS\manifest.xml" (
     echo  [ERROR] File manifest.xml tidak ditemukan.
     echo.
@@ -21,17 +21,17 @@ if not exist "%~dp0com.heosan.sedpanel\CSXS\manifest.xml" (
     exit /b 1
 )
 
-:: ── Tentukan path APPDATA ─────────────────────────────────
+:: -- Tentukan path APPDATA ---------------------------------
 set "ROAMING=%APPDATA%"
 if not defined ROAMING set "ROAMING=C:\Users\%USERNAME%\AppData\Roaming"
 
 echo  Folder instalasi: %ROAMING%\Adobe\CEP\extensions
 echo.
 
-:: ════════════════════════════════════════════════════════
-:: [0/3] Periksa CSInterface.js
-:: ════════════════════════════════════════════════════════
-echo  [0/4] Memeriksa CSInterface.js...
+:: =========================================================
+:: [0/3] Check CSInterface.js
+:: =========================================================
+echo  [0/3] Memeriksa CSInterface.js...
 echo.
 
 set "CSIJS=%~dp0com.heosan.sedpanel\js\CSInterface.js"
@@ -94,10 +94,10 @@ if "%NEED_DL%"=="1" (
 )
 echo.
 
-:: ════════════════════════════════════════════════════════
+:: =========================================================
 :: [1/3] Aktifkan CEP Debug Mode
-:: ════════════════════════════════════════════════════════
-echo  [1/4] Mengaktifkan CEP Debug Mode...
+:: =========================================================
+echo  [1/3] Mengaktifkan CEP Debug Mode...
 echo.
 
 set "REG_OK=0"
@@ -114,10 +114,10 @@ if "%REG_OK%"=="1" (
 )
 echo.
 
-:: ════════════════════════════════════════════════════════
+:: =========================================================
 :: [2/3] Cek After Effects
-:: ════════════════════════════════════════════════════════
-echo  [2/4] Memeriksa proses After Effects...
+:: =========================================================
+echo  [2/3] Memeriksa proses After Effects...
 echo.
 
 tasklist 2>nul | find /i "AfterFX.exe" >nul 2>&1
@@ -136,180 +136,15 @@ if not errorlevel 1 (
 )
 echo.
 
-:: ════════════════════════════════════════════════════════
-:: ════════════════════════════════════════════════════════
-:: [3/4] Python + opencv-python
-:: Dibutuhkan untuk thumbnail cepat via cv2.VideoCapture
-:: Python 3.13.3 (stable) — download otomatis jika belum ada
-:: ════════════════════════════════════════════════════════
-echo  [3/4] Memeriksa Python...
-echo.
-
-set "PY_OK=0"
-set "PY_EXE="
-set "PY_VER="
-
-:: Cek Python di PATH (python, python3, atau py launcher)
-for %%P in (python python3 py) do (
-    if "!PY_OK!"=="0" (
-        %%P --version >nul 2>&1
-        if not errorlevel 1 (
-            set "PY_OK=1"
-            set "PY_EXE=%%P"
-            for /f "tokens=*" %%V in ('%%P --version 2^>^&1') do set "PY_VER=%%V"
-        )
-    )
-)
-
-if "!PY_OK!"=="1" (
-    echo  [OK] Python ditemukan: !PY_VER!  ^(!PY_EXE!^)
-    echo.
-    goto :PY_CV2_CHECK
-)
-
-:: Python tidak ada — tawarkan install otomatis
-echo  Python tidak ditemukan.
-echo.
-echo  Python dibutuhkan untuk thumbnail cepat ^(cv2.VideoCapture^).
-echo  Tanpa Python, thumbnail tetap bisa via FFmpeg ^(lebih lambat^).
-echo.
-choice /c YN /n /m "  Install Python 3.13.3 sekarang? (Y/N): "
-if errorlevel 2 (
-    echo  [SKIP] Python dilewati. Thumbnail akan pakai FFmpeg.
-    echo.
-    goto :PY_COPY_THUMBGEN
-)
-
-:: ── Download Python 3.13.3 installer (Windows 64-bit) ────
-echo.
-echo  Mendownload Python 3.13.3 (~25MB)...
-set "PY_URL=https://www.python.org/ftp/python/3.13.3/python-3.13.3-amd64.exe"
-set "PY_INST=%TEMP%\python-3.13.3-amd64.exe"
-set "PY_DL_OK=0"
-
-where powershell >nul 2>&1
-if not errorlevel 1 (
-    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-        "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;(New-Object Net.WebClient).DownloadFile('%PY_URL%','%PY_INST%')" >nul 2>&1
-    if exist "%PY_INST%" (
-        for %%F in ("%PY_INST%") do if %%~zF GTR 1000000 set "PY_DL_OK=1"
-    )
-)
-
-if "!PY_DL_OK!"=="0" (
-    where curl >nul 2>&1
-    if not errorlevel 1 (
-        curl -L --silent --max-time 120 -o "%PY_INST%" "%PY_URL%" >nul 2>&1
-        if exist "%PY_INST%" (
-            for %%F in ("%PY_INST%") do if %%~zF GTR 1000000 set "PY_DL_OK=1"
-        )
-    )
-)
-
-if "!PY_DL_OK!"=="0" (
-    echo  [GAGAL] Download Python gagal. Cek koneksi internet.
-    echo.
-    echo  Download manual: https://www.python.org/downloads/
-    echo  Pilih Python 3.13.x (Windows installer 64-bit).
-    echo  Centang "Add python.exe to PATH" saat install.
-    echo.
-    goto :PY_COPY_THUMBGEN
-)
-
-echo  [OK] Download selesai.
-echo.
-echo  Menjalankan installer Python 3.13.3...
-echo  PASTIKAN "Add python.exe to PATH" dicentang!
-echo.
-
-:: /passive = minimal UI, PrependPath=1 = tambah ke PATH otomatis
-"%PY_INST%" /passive PrependPath=1 Include_pip=1 Include_test=0
-set "PY_INST_ERR=!errorlevel!"
-del /q "%PY_INST%" >nul 2>&1
-
-:: Refresh PATH agar python langsung bisa ditemukan
-for %%D in (
-    "%LOCALAPPDATA%\Programs\Python\Python313"
-    "%LOCALAPPDATA%\Programs\Python\Python313\Scripts"
-    "C:\Python313"
-    "C:\Python313\Scripts"
-) do (
-    if exist "%%~D\python.exe" set "PATH=%%~D;!PATH!"
-    if exist "%%~D\python.exe" set "PY_EXE=%%~D\python.exe"
-)
-
-:: Cek ulang setelah install
-for %%P in (python python3 py) do (
-    if "!PY_OK!"=="0" (
-        %%P --version >nul 2>&1
-        if not errorlevel 1 (
-            set "PY_OK=1"
-            if not defined PY_EXE set "PY_EXE=%%P"
-            for /f "tokens=*" %%V in ('%%P --version 2^>^&1') do set "PY_VER=%%V"
-        )
-    )
-)
-
-if "!PY_OK!"=="1" (
-    echo  [OK] Python berhasil diinstall: !PY_VER!
-) else (
-    echo  [WARN] Python tidak terdeteksi setelah install.
-    echo  Restart PC lalu jalankan install.bat lagi jika thumbnail lambat.
-)
-echo.
-
-:PY_CV2_CHECK
-:: ── Cek dan install opencv-python-headless ────────────────
-if "!PY_OK!"=="0" goto :PY_COPY_THUMBGEN
-
-echo  Memeriksa opencv-python...
-set "CV2_OK=0"
-"!PY_EXE!" -c "import cv2" >nul 2>&1
-if not errorlevel 1 (
-    set "CV2_OK=1"
-    for /f "tokens=*" %%V in ('"!PY_EXE!" -c "import cv2; print(cv2.__version__)" 2^>nul') do (
-        echo  [OK] opencv-python ditemukan: %%V
-    )
-    echo.
-    goto :PY_COPY_THUMBGEN
-)
-
-echo  opencv-python belum ada.
-choice /c YN /n /m "  Install opencv-python sekarang? (Y/N): "
-if errorlevel 2 (
-    echo  [SKIP] opencv-python dilewati. Thumbnail akan pakai FFmpeg.
-    echo.
-    goto :PY_COPY_THUMBGEN
-)
-
-echo.
-echo  Menginstall opencv-python-headless...
-"!PY_EXE!" -m pip install --upgrade pip --quiet >nul 2>&1
-"!PY_EXE!" -m pip install opencv-python-headless --quiet
-if not errorlevel 1 (
-    echo  [OK] opencv-python-headless berhasil diinstall.
-) else (
-    echo  [WARN] Install gagal. Thumbnail akan pakai FFmpeg.
-    echo  Coba manual: pip install opencv-python-headless
-)
-echo.
-
-:PY_COPY_THUMBGEN
-:: ── Salin thumb_gen.py ke folder instalasi ────────────────
-if exist "%SRC%\thumb_gen.py" (
-    copy /y "%SRC%\thumb_gen.py" "%DEST%\thumb_gen.py" >nul 2>&1
-)
-
-:: [4/4] Install Extension
-:: ════════════════════════════════════════════════════════
-echo  [4/4] Menginstal extension...
+:: =========================================================
+:: [3/3] Install Extension
+:: =========================================================
+echo  [3/3] Menginstal extension...
 echo.
 
 set "CEP_DIR=%ROAMING%\Adobe\CEP\extensions"
 set "DEST=%CEP_DIR%\com.heosan.sedpanel"
 set "SRC=%~dp0com.heosan.sedpanel"
-
-echo  Menginstall SED Panel v3.2 (Multi-Layer)...
 
 :: Buat folder jika belum ada
 if not exist "%ROAMING%\Adobe"     mkdir "%ROAMING%\Adobe"     >nul 2>&1
@@ -330,7 +165,6 @@ mkdir "%DEST%\CSXS"     >nul 2>&1
 mkdir "%DEST%\css"      >nul 2>&1
 mkdir "%DEST%\js"       >nul 2>&1
 mkdir "%DEST%\jsx"      >nul 2>&1
-mkdir "%DEST%\py"       >nul 2>&1
 
 :: Salin file
 echo  Menyalin file...
@@ -340,17 +174,9 @@ copy /y "%SRC%\css\style.css"       "%DEST%\css\style.css"      >nul 2>&1
 copy /y "%SRC%\js\CSInterface.js"   "%DEST%\js\CSInterface.js"  >nul 2>&1
 copy /y "%SRC%\js\main.js"          "%DEST%\js\main.js"         >nul 2>&1
 copy /y "%SRC%\jsx\host.jsx"        "%DEST%\jsx\host.jsx"       >nul 2>&1
-
-:: Salin thumb_gen.py + thumb_gen.exe (cv2 bundled)
-if exist "%SRC%\thumb_gen.py" (
-    copy /y "%SRC%\thumb_gen.py" "%DEST%\thumb_gen.py" >nul 2>&1
-)
-if exist "%SRC%\py\thumb_gen.exe" (
-    copy /y "%SRC%\py\thumb_gen.exe" "%DEST%\py\thumb_gen.exe" >nul 2>&1
-)
 echo.
 
-:: ── Verifikasi ────────────────────────────────────────────
+:: -- Verifikasi --------------------------------------------
 echo  Verifikasi:
 set "ALL_OK=1"
 
@@ -371,18 +197,6 @@ if exist "%DEST%\js\CSInterface.js" (
     echo   [!!] CSInterface.js HILANG
     set "ALL_OK=0"
 )
-if exist "%DEST%\thumb_gen.py" (
-    echo   [OK] thumb_gen.py
-) else (
-    echo   [INFO] thumb_gen.py tidak ada
-)
-if exist "%DEST%\py\thumb_gen.exe" (
-    for %%F in ("%DEST%\py\thumb_gen.exe") do (
-        echo   [OK] py\thumb_gen.exe ^(%%~zF bytes^)
-    )
-) else (
-    echo   [INFO] py\thumb_gen.exe tidak ada ^(thumbnail fallback ke AE^)
-)
 echo.
 
 if "%ALL_OK%"=="0" (
@@ -393,12 +207,11 @@ if "%ALL_OK%"=="0" (
     exit /b 1
 )
 
-:: ════════════════════════════════════════════════════════
+:: =========================================================
 :: SELESAI
-:: ════════════════════════════════════════════════════════
+:: =========================================================
 echo  =====================================================
 echo   INSTALASI SELESAI!  SED Panel CEP v3.2
-echo   Multi-Layer Read Markers  ^|  Thumbnail Multi-Layer  ^|  Merge Cut Layers
 echo  =====================================================
 echo.
 echo  Terinstall di:
