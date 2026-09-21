@@ -2,6 +2,57 @@
 
 All notable changes to SED Panel will be documented here.
 
+## [3.4.0] — 2026-09-21
+
+### Fixed
+- **Thumbnail cache never hit**: `_tryLoadThumbCache` passed `newPaths.length` (always `undefined` on a plain object), so the `count === scenes.length` check could never pass — now uses `Object.keys(newPaths).length`
+- Cache-hit thumbnails now use `filePathToURI()` (proper `encodeURI`) instead of raw `"file:///"` concat — paths with spaces/`#`/unicode no longer break
+- `goToScene`: clamp `workAreaStart`/`workAreaDuration` to comp duration like `exportToRenderQueue` (unclamped values threw on last scene)
+- `_jsLog` and `window.onerror`: escape backslash/quote/newline before injecting into JSX string literal (multi-line messages broke the log call)
+- `t()` i18n substitution uses a function replacer so values containing `$&`/`$'` stay literal
+- Update check: 10s `AbortController` timeout + `.catch` handlers (offline no longer leaves unhandled rejection)
+- `beforeunload` uses standard `e.returnValue = ""`
+- Capture fallbacks (`saveFrameToPng` / RQ / lazy) now log the root-cause error via `_writeLog` instead of swallowing it
+- Update check: primary via `releases/latest` redirect (web page, no API rate limit) with GitHub API as fallback; visible "Checking…" state, failure reason in status bar + log
+- Startup cleanup also removes stale `sed_thumb_cancel_*.flag` files
+- Blank-panel watchdog interval relaxed 2s → 5s
+
+### Changed
+- Version bump to 3.4.0 across manifest.xml, main.js, host.jsx, index.html, install.bat, install.iss, debug.bat
+- `install.iss`: `AppVer`/`OutputBaseFilename` 3.2.0 → 3.4.0
+- `install.bat`: verifies `py\thumb_gen.exe` presence (warn-only, AE fallback still works)
+- `debug.bat`: `head` → `more` (stock Windows), checks `py\thumb_gen.exe` instead of removed `ffmpeg/`
+- `README_CEP.txt`: version header, `py/` folder structure, hot-reload note, website URL
+- `style.css`: fixed stale `v9.5` comments
+
+### Compatibility
+- Adobe After Effects 2022 (v22.0) through 2026 (v26.0)
+- CSXS 6.0 runtime, manifest Host AEFT [13.0, 99.9]
+- Registry CSXS 9–13 for CEP debug mode (`install.iss` writes 4–13 superset, harmless)
+
+## [3.3.0] — 2026-07-24
+
+### Added
+- Cancel thumbnail generation properly kills background processes (`ffmpeg.exe`, `thumb_gen.exe`, `python.exe` running `thumb_gen.py`)
+- `thumb_gen.exe` (compiled executable in `py/` folder) as primary thumbnail generator — no Python dependency required
+- Fallback to ExtendScript native capture (`saveFrameToPng` / Render Queue) if `thumb_gen.exe` missing
+
+### Changed
+- `keepOnlyScenes`: duplicate layers now keep source name without `"_N"` suffix (was `srcName + '_' + (k2 + 1)`)
+- Removed `thumb_gen.py` Python fallback entirely — faster, dependency-free install
+- `runThumbGenPy()` no longer accepts `pythonExe` parameter
+- Install: no Python auto-install (since v3.1)
+
+### Fixed
+- **Thumbs failed after cancel**: background process kept running and conflicted on next Read Markers — now killed via `taskkill`
+- `install.bat` BOM fix (UTF-8 without BOM to prevent `'∩╗┐@echo off'` error)
+- Version bump to 3.3.0 across manifest.xml, main.js, host.jsx, install.bat
+
+### Compatibility
+- Adobe After Effects 2022 (v22.0) through 2026 (v26.0)
+- CSXS 6.0 runtime, manifest Host AEFT [13.0, 99.9]
+- Registry CSXS 9–13 for CEP debug mode
+
 ## [3.2.0] — 2026-07-16
 
 ### Added

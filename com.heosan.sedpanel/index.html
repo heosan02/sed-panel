@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>SED Panel v3.2</title>
+  <title>SED Panel v3.4</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -30,7 +30,7 @@
   <circle cx="63" cy="30" r="7.5" fill="white" fill-opacity=".80"/>
 </svg>
       </div>
-      <span id="onboard-title">SED Panel v3.2</span>
+      <span id="onboard-title">SED Panel v3.4</span>
       <button id="onboard-skip" class="ob-skip">Skip</button>
     </div>
 
@@ -114,7 +114,7 @@
       <div class="ob-slide" data-slide="7">
         <div class="ob-slide-icon">🖼</div>
         <div class="ob-slide-h" data-i18n="ob_h_thumb">Thumbnail Preview</div>
-        <div class="ob-slide-p" data-i18n="ob_thumb_desc">Click <strong>🖼 Thumbs</strong> to generate thumbnails for each scene.<br><strong>Fast mode</strong> (default) uses Python cv2 — generates all at once with a progress popup.<br><strong>Lazy mode</strong> uses AE's saveFrameToPng — thumbnails appear one-by-one without a popup.<br>Switch modes in <strong>Settings → Thumbnail Mode</strong>.</div>
+        <div class="ob-slide-p" data-i18n="ob_thumb_desc">Click <strong>🖼 Thumbs</strong> to generate thumbnails for each scene.<br><strong>Fast mode</strong> (default) uses thumb_gen.exe — generates all at once with a progress popup.<br><strong>Lazy mode</strong> uses AE's saveFrameToPng — thumbnails appear one-by-one without a popup.<br>Switch modes in <strong>Settings → Thumbnail Mode</strong>.</div>
         <div class="ob-tip">
           <span class="ob-tip-icon">💡</span>
           <span data-i18n="ob_thumb_tip">Thumbnails are rendered to the temp folder, then automatically cleaned after reading. Lazy mode is best for quick previews; Fast mode is best for speed with large scene counts.</span>
@@ -223,7 +223,7 @@
       </div>
       <div id="logo-text">
         <span id="logo-title">SED PANEL</span>
-        <span id="logo-ver">v3.2</span>
+        <span id="logo-ver">v3.4</span>
       </div>
       <button id="settings-btn" class="icon-btn" title="Settings" style="margin-left:auto">⚙</button>
       <button id="about-btn" class="icon-btn" title="About">?</button>
@@ -420,7 +420,7 @@
       </div>
     </div>
     <div id="about-name">SED PANEL</div>
-    <div id="about-version">v3.2.0 · Multi-Layer · Scene Edit Detection</div>
+    <div id="about-version">v3.4.0 · Multi-Layer · Scene Edit Detection</div>
     <div id="about-desc" data-i18n="about_desc">Scene Edit Detection Panel for Adobe After Effects.</div>
 
     <!-- Links -->
@@ -495,7 +495,7 @@
       <div id="thumb-mode-switcher">
         <label class="thumb-mode-option">
           <input type="radio" name="thumb-mode" id="thumb-mode-fast" value="fast" checked>
-          <span class="thumb-mode-label" data-i18n="thumb_mode_fast">Fast (Python cv2)</span>
+          <span class="thumb-mode-label" data-i18n="thumb_mode_fast">Fast (thumb_gen.exe)</span>
         </label>
         <label class="thumb-mode-option">
           <input type="radio" name="thumb-mode" id="thumb-mode-lazy" value="lazy">
@@ -562,6 +562,6 @@
 
 <canvas id="click-spark-canvas"></canvas>
 <script src="js/CSInterface.js"></script>
-<script src="js/main.js?v=9.5.0"></script>
+<script src="js/main.js?v=3.4.0"></script>
 </body>
 </html>

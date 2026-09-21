@@ -8,7 +8,7 @@
 - **Read Markers** — Read existing layer markers from AE's built-in detection
 - **Multi-Layer Read Markers** — Read markers from all layers simultaneously, merge unique cut times
 - **Scene Navigation** — Browse scenes via grid or list view with transport controls (⏮ ◀ ▶ ⏭)
-- **Thumbnail Preview** — Generate preview thumbnails via Python cv2 (fast), FFmpeg, or AE saveFrameToPng
+- **Thumbnail Preview** — Generate preview thumbnails via compiled `thumb_gen.exe` (fast, no dependencies) with fallback to AE saveFrameToPng / Render Queue
 - **Merge Scenes** — Combine adjacent scenes into a single marker (supports both marker-based and split-layer merge)
 - **Cut Layer** — Split video layer at all cut points or selected scenes only
 - **Delete Except Selected** — Keep only marked scenes, remove the rest (split-layer preserves markers)
@@ -31,7 +31,6 @@ Download the latest `SED_Panel_vX.X_Setup.exe` from [Releases](https://github.co
 
 - Adobe After Effects 2022 (v22.0) through 2026 (v26.0)
 - Windows 10/11 (macOS support via manual install)
-- Python 3.13+ (optional, for fast cv2 thumbnail generation)
 
 ## Usage
 

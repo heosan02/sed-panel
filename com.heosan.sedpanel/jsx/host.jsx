@@ -1,5 +1,5 @@
 ﻿// ============================================================
-// host.jsx  -  SED Panel CEP  v3.2  (Multi-Layer)
+// host.jsx  -  SED Panel CEP  v3.4  (Multi-Layer)
 
 // ══════════════════════════════════════════════════════════
 // AE VERSION DETECTION — called on panel startup
@@ -229,7 +229,7 @@ function _captureSaveFrame(comp, snapSec, outFile){
         }
         comp.resolutionFactor = savedRes;
         return _waitForOut(normFile, 3500);
-    }catch(e){}
+    }catch(e){ try{ _writeLog("thumb","[CAPTURE] saveFrame failed: "+e.toString()); }catch(le){} }
     return null;
 }
 
@@ -298,6 +298,7 @@ function _captureViaRQ(comp, snapSec, outFile){
     }catch(e){
         if(rq){ try{ rq.remove(); }catch(re){} }
         if(miniComp){ try{ miniComp.remove(); }catch(de){} }
+        try{ _writeLog("thumb","[CAPTURE] RQ fallback failed: "+e.toString()); }catch(le){}
         return null;
     }
 }
@@ -322,7 +323,7 @@ function _captureFrameLazy(comp, snapSec, outFile){
         if(normFile.exists) try{ normFile.remove(); }catch(e){}
         comp.saveFrameToPng(t, normFile);
         return _waitForOut(normFile, 5000);
-    }catch(e){}
+    }catch(e){ try{ _writeLog("thumb","[CAPTURE] lazy saveFrame failed: "+e.toString()); }catch(le){} }
     return _captureViaRQ(comp, snapSec, outFile);
 }
 
@@ -513,36 +514,101 @@ function readMarkers(){
     var comp=app.project.activeItem;
     if(!comp||!(comp instanceof CompItem)) return JSON.stringify({ok:false,msg:"Activate a composition first."});
 
-    // Collect markers from ALL valid marker layers in the comp.
-    // Single-pass scan (no Pass 1/Pass 2 split) ensures CONSISTENT results
-    // whether called from the panel or from within mergeScenes/keepOnlyScenes.
-    var allLayerMarkers = [];
     var fps = comp.frameRate;
     var dur = comp.duration;
-    var eps = 0.5 / fps;
 
-    for(var li = 1; li <= comp.numLayers; li++){
+    var diag = {
+        comp: String(comp.name),
+        totalLayers: comp.numLayers,
+        strictLayers: 0,
+        strictMarkers: 0,
+        lenientLayers: 0,
+        lenientMarkers: 0,
+        edgeMarkersSkipped: 0,
+        note: ""
+    };
+    var edgeKeys = {};
+
+    // Append {time,layerIndex,layerName} for every marker in range of the layer.
+    function _collect(layer, li, arr){
         try{
-            var l = comp.layer(li);
-            if(!(l instanceof AVLayer)) continue;
-            if(!_isValidMarkerLayer(l)) continue;
-            var mkr = l.property("Marker");
-            if(!mkr || mkr.numKeys === 0) continue;
+            var mkr = layer.property("Marker");
+            if(!mkr || mkr.numKeys === 0) return;
             for(var k = 1; k <= mkr.numKeys; k++){
                 var t = mkr.keyTime(k);
                 if(t > 0.001 && t < dur - 0.001){
-                    allLayerMarkers.push({time: t, layerIndex: li, layerName: l.name});
+                    arr.push({time:t, layerIndex:li, layerName: layer.name});
+                } else {
+                    var ek = li + "|" + t;
+                    if(!edgeKeys[ek]){ edgeKeys[ek] = 1; diag.edgeMarkersSkipped++; }
                 }
             }
         }catch(e){}
     }
 
-    if(allLayerMarkers.length > 0) return _buildScenesFromMarkers(allLayerMarkers, dur, fps);
+    // Pass 1: strict scan — only layers that pass _isValidMarkerLayer
+    // (video footage / pre-comps). Solids, adjustment, text, null are skipped.
+    var strictMarkers = [];
+    for(var li = 1; li <= comp.numLayers; li++){
+        try{
+            var l = comp.layer(li);
+            if(!(l instanceof AVLayer)) continue;
+            if(!_isValidMarkerLayer(l)) continue;
+            diag.strictLayers++;
+            _collect(l, li, strictMarkers);
+        }catch(e){}
+    }
+    diag.strictMarkers = strictMarkers.length;
+    if(strictMarkers.length > 0){
+        _writeLog("diag","[READ] strict scan: "+diag.strictMarkers+" markers on "+diag.strictLayers+" valid layer(s)");
+        return _buildScenesFromMarkers(strictMarkers, dur, fps);
+    }
 
-    // Fall back to single-layer active layer search (original behavior)
+    // Pass 2: lenient scan — ANY AVLayer with markers, even solids,
+    // adjustment/text/null/etc. that the strict filter rejects. This prevents
+    // the false "No markers" when markers sit on such a layer.
+    var anyMarkers = [];
+    for(var li2 = 1; li2 <= comp.numLayers; li2++){
+        try{
+            var l2 = comp.layer(li2);
+            if(!(l2 instanceof AVLayer)) continue;
+            _collect(l2, li2, anyMarkers);
+        }catch(e){}
+    }
+    diag.lenientMarkers = anyMarkers.length;
+    diag.lenientLayers = _countDistinctLayers(anyMarkers);
+    if(anyMarkers.length > 0){
+        diag.note = "markers found via lenient scan (non-video layer types)";
+        _writeLog("diag","[READ] strict=0, lenient fallback: "+diag.lenientMarkers+" markers on "+diag.lenientLayers+" layer(s)");
+        return _buildScenesFromMarkers(anyMarkers, dur, fps);
+    }
+
+    // Pass 3: active layer fallback (original behavior) — catches markers on
+    // a non-AVLayer (e.g. text) that the AVLayer scans cannot see.
     var singleLayer = _getActiveLayer(comp);
-    if(singleLayer) return readMarkersFromLayer(singleLayer, comp);
-    return JSON.stringify({ok:false,msg:"No layers with markers found."});
+    if(singleLayer){
+        try{
+            var mkr3 = singleLayer.property("Marker");
+            if(mkr3 && mkr3.numKeys > 0){
+                diag.note = "markers found on active layer '"+singleLayer.name+"'";
+                _writeLog("diag","[READ] strict=0 lenient=0, active layer '"+singleLayer.name+"' has markers");
+                return readMarkersFromLayer(singleLayer, comp);
+            }
+        }catch(e){}
+        diag.note = "no markers anywhere; active layer '"+singleLayer.name+"' has none";
+    } else {
+        diag.note = "no markers found and no active layer";
+    }
+    _writeLog("diag","[READ] NO MARKERS: "+JSON.stringify(diag));
+    return JSON.stringify({ok:false,msg:"No markers found.",diag:diag});
+}
+
+function _countDistinctLayers(markers){
+    var seen = {}, n = 0;
+    for(var i = 0; i < markers.length; i++){
+        if(!seen[markers[i].layerIndex]){ seen[markers[i].layerIndex] = 1; n++; }
+    }
+    return n;
 }
 
 function _buildScenesFromMarkers(markers, dur, fps){
@@ -616,7 +682,10 @@ function goToScene(startSec,durSec){
     try{
         var comp=app.project.activeItem;
         if(!comp||!(comp instanceof CompItem)) return JSON.stringify({ok:false});
-        comp.time=startSec; comp.workAreaStart=startSec; comp.workAreaDuration=durSec;
+        // ponytail: clamp like exportToRenderQueue — unclamped values throw when start+dur exceeds comp duration
+        var st=Math.max(0,Math.min(startSec,comp.duration));
+        var maxDur=Math.max(comp.duration-st,0);
+        comp.time=st; comp.workAreaStart=st; comp.workAreaDuration=Math.min(durSec,maxDur);
         return JSON.stringify({ok:true});
     }catch(e){ return JSON.stringify({ok:false,msg:e.toString()}); }
 }
@@ -625,8 +694,14 @@ function goToFrame(startSec){
     try{
         var comp=app.project.activeItem;
         if(!comp||!(comp instanceof CompItem)) return JSON.stringify({ok:false});
-        comp.time=startSec; return JSON.stringify({ok:true});
-    }catch(e){ return JSON.stringify({ok:false}); }
+        comp.time=startSec;
+        // Force the composition viewer to refresh so AE visibly jumps to the frame
+        try{
+            var v=app.activeViewer;
+            if(v && v.type===ViewerType.VIEWER_COMPOSITION) v.setActive();
+        }catch(e2){}
+        return JSON.stringify({ok:true});
+    }catch(e){ return JSON.stringify({ok:false,msg:e.toString()}); }
 }
 
 function ramPreview(){
@@ -716,7 +791,8 @@ function keepOnlyScenes(scenesJson,allScenesJson){
             var dotIdx = srcName.lastIndexOf('.');
             if(dotIdx > 0) srcName = srcName.substring(0, dotIdx);
 
-            // Hapus semua marker
+            // Clear all markers on the original first so each duplicate
+            // starts clean and only gets the single start marker we add.
             var origMarkers = layer.property("Marker");
             if(origMarkers){
                 while(origMarkers.numKeys > 0){
@@ -724,7 +800,9 @@ function keepOnlyScenes(scenesJson,allScenesJson){
                 }
             }
 
-            // Duplicate dari terakhir ke pertama (reverse order)
+            // Duplicate from last to first: each duplicate is trimmed to its
+            // scene's in/out range, renamed, and given 1 marker at its start.
+            // Duplicate + trim is far cheaper than splitLayer on heavy layers.
             for(var k2 = layerScenes.length - 1; k2 >= 0; k2--){
                 var sc = layerScenes[k2];
                 var dup = layer.duplicate();
@@ -998,223 +1076,6 @@ function mergeScenes(groupsJson){
     });
 }
 
-// Marker-based merge: remove internal boundary markers
-function _mergeMarkers(comp, layer, groups, removeTimes, mergedCount, fps){
-    app.beginUndoGroup("SED: Merge Scenes");
-    var removedKeys = 0;
-    try{
-        var markers = layer.property("Marker");
-        if(markers && markers.numKeys > 0){
-            for(var k = markers.numKeys; k >= 1; k--){
-                var kt = markers.keyTime(k);
-                var matched = false;
-                for(var r = 0; r < removeTimes.length; r++){
-                    if(Math.abs(kt - removeTimes[r]) <= 1/fps*0.5){ matched = true; break; }
-                }
-                if(matched){
-                    markers.removeKey(k);
-                    removedKeys++;
-                }
-            }
-        }
-    }catch(e){
-        app.endUndoGroup();
-        return JSON.stringify({ok:false,msg:"Merge failed: "+e.toString()});
-    }
-    app.endUndoGroup();
-
-    if(removedKeys === 0){
-        return JSON.stringify({ok:false,
-            msg:"No matching markers found to merge. Scene data may be out of date — click [Read Markers] and try again."});
-    }
-
-    var rebuilt = readMarkers();
-    var rebuiltObj;
-    try{ rebuiltObj = JSON.parse(rebuilt); }catch(e){ rebuiltObj = {ok:false}; }
-
-    if(!rebuiltObj.ok){
-        return JSON.stringify({ok:false, msg:"Merged markers but failed to re-read scenes: "+(rebuiltObj.msg||"")});
-    }
-
-    return JSON.stringify({
-        ok: true,
-        groupsMerged: mergedCount,
-        removedMarkers: removedKeys,
-        scenes: rebuiltObj.scenes,
-        layerName: rebuiltObj.layerName,
-        fps: rebuiltObj.fps
-    });
-}
-
-// Layer-based merge: merge already-cut layers by extending the first
-// layer's outPoint and deleting subsequent layers in each group
-function _mergeLayers(comp, groups, allGroupScenes, mergedCount, fps){
-    var eps = 1/fps * 0.5;
-    var totalBefore = comp.numLayers;
-    var totalRemoved = 0;
-    var removedMarkers = 0;
-
-    app.beginUndoGroup("SED: Merge Layers");
-    try{
-        for(var g = 0; g < groups.length; g++){
-            var grp = groups[g];
-            if(grp.length < 2) continue;
-
-            // Find layers matching the first and last scene in this group
-            var firstScene = grp[0];
-            var lastScene  = grp[grp.length - 1];
-            var firstLayer = null;
-            var lastLayer  = null;
-            var middleLayers = [];
-
-            for(var li = 1; li <= comp.numLayers; li++){
-                var l = comp.layer(li);
-                if(!l || !(l instanceof AVLayer)) continue;
-                // Match by inPoint/outPoint
-                if(Math.abs(l.inPoint - firstScene.start_sec) <= eps &&
-                   Math.abs(l.outPoint - firstScene.end_sec) <= eps){
-                    firstLayer = l;
-                }
-                if(Math.abs(l.inPoint - lastScene.start_sec) <= eps &&
-                   Math.abs(l.outPoint - (lastScene.start_sec + lastScene.dur_sec)) <= eps){
-                    lastLayer = l;
-                }
-            }
-
-            if(!firstLayer || !lastLayer) continue;
-
-            // Extend firstLayer's outPoint to lastLayer's outPoint
-            // This effectively merges all middle layers into the first one
-            firstLayer.outPoint = lastLayer.outPoint;
-
-            // Remove all markers on the first layer that fall between
-            // the original firstLayer.outPoint and the new outPoint
-            try{
-                var fm = firstLayer.property("Marker");
-                if(fm && fm.numKeys > 0){
-                    for(var fk = fm.numKeys; fk >= 1; fk--){
-                        var ft = fm.keyTime(fk);
-                        if(ft > firstScene.end_sec - eps && ft < lastScene.end_sec - eps){
-                            fm.removeKey(fk);
-                            removedMarkers++;
-                        }
-                    }
-                }
-            }catch(em){}
-
-            // Remove all layers between firstLayer and lastLayer
-            // Walk the layer stack from last back to avoid index shifts
-            for(var li2 = comp.numLayers; li2 >= 1; li2--){
-                var l2 = comp.layer(li2);
-                if(!l2 || l2 === firstLayer) continue;
-                var skip = false;
-                for(var gg = 0; gg < groups.length; gg++){
-                    for(var ss = 0; ss < groups[gg].length; ss++){
-                        var sc = groups[gg][ss];
-                        if(Math.abs(l2.inPoint - sc.start_sec) <= eps &&
-                           Math.abs(l2.outPoint - (sc.start_sec + sc.dur_sec)) <= eps){
-                            // This layer matches a scene, but is it IN our current merge group?
-                            var isInThisGroup = false;
-                            for(var mi = 0; mi < grp.length; mi++){
-                                if(Math.abs(grp[mi].start_sec - sc.start_sec) <= eps &&
-                                   Math.abs(grp[mi].end_sec - sc.end_sec) <= eps){
-                                    isInThisGroup = true; break;
-                                }
-                            }
-                            if(isInThisGroup && l2 !== firstLayer){
-                                try{ l2.remove(); totalRemoved++; } catch(er){}
-                            }
-                            skip = true;
-                            break;
-                        }
-                    }
-                    if(skip) break;
-                }
-            }
-        }
-    }catch(e){
-        app.endUndoGroup();
-        return JSON.stringify({ok:false,msg:"Layer merge failed: "+e.toString()});
-    }
-    app.endUndoGroup();
-
-    if(totalRemoved === 0){
-        // No layers matched — fall back to old behavior or report error
-        return JSON.stringify({ok:false,
-            msg:"No matching cut layers found. Try [Read Markers] first, then merge again."});
-    }
-
-    // Re-read scenes from the remaining layers
-    // Use the first remaining footage layer as the source for re-reading
-    var sceneLayer = null;
-    for(var li3 = 1; li3 <= comp.numLayers; li3++){
-        var l3 = comp.layer(li3);
-        if(l3 && l3 instanceof AVLayer && l3.source instanceof FootageItem){
-            sceneLayer = l3;
-            break;
-        }
-    }
-
-    if(sceneLayer){
-        var rebuilt = readMarkers();
-        var rebuiltObj;
-        try{ rebuiltObj = JSON.parse(rebuilt); }catch(e){ rebuiltObj = {ok:false}; }
-        if(rebuiltObj.ok){
-            return JSON.stringify({
-                ok: true,
-                groupsMerged: mergedCount,
-                removedMarkers: removedMarkers,
-                scenes: rebuiltObj.scenes,
-                layerName: rebuiltObj.layerName,
-                fps: rebuiltObj.fps,
-                layersRemoved: totalRemoved
-            });
-        }
-    }
-
-    // Fallback: construct scenes from the current layer trims
-    var layerScenes = [];
-    var layersFound = [];
-    for(var li4 = 1; li4 <= comp.numLayers; li4++){
-        var l4 = comp.layer(li4);
-        if(!l4 || !(l4 instanceof AVLayer)) continue;
-        var scStart = l4.inPoint;
-        var scEnd   = l4.outPoint;
-        if(scEnd > dur) scEnd = dur;
-        layersFound.push({
-            start_sec: scStart,
-            end_sec:   scEnd
-        });
-    }
-    layersFound.sort(function(a,b){ return a.start_sec - b.start_sec; });
-    for(var si = 0; si < layersFound.length; si++){
-        var s = layersFound[si].start_sec;
-        var e = layersFound[si].end_sec;
-        layerScenes.push({
-            index: si+1,
-            start_sec: s,
-            end_sec: e,
-            dur_sec: e-s,
-            start_tc: _fmtTC(s, fps),
-            end_tc: _fmtTC(e, fps),
-            dur_tc: _fmtTC(e-s, fps),
-            dur_str: _fmtDur(e-s),
-            fps: fps,
-            layerIndex: 1
-        });
-    }
-
-    return JSON.stringify({
-        ok: true,
-        groupsMerged: mergedCount,
-        removedMarkers: removedMarkers,
-        scenes: layerScenes,
-        layerName: "Merged layers",
-        fps: fps,
-        layersRemoved: totalRemoved
-    });
-}
-
 function getActiveCompId(){
     var comp=app.project.activeItem;
     if(!comp||!(comp instanceof CompItem)) return JSON.stringify({ok:false});
@@ -1406,18 +1267,6 @@ function getTempFolderPath(customPath){
     return JSON.stringify({ok:true,path:f.fsName});
 }
 
-// getSystemTempPath() — return system temp folder path (Folder.temp)
-// Used by JS to write the thumb control file via cep.fs instead of evalScript
-function getSystemTempPath(){
-    try{
-        var t = Folder.temp;
-        if(!t || !t.exists) return JSON.stringify({ok:false, path:""});
-        return JSON.stringify({ok:true, path:t.fsName});
-    }catch(e){
-        return JSON.stringify({ok:false, path:"", msg:e.toString()});
-    }
-}
-
 // getThumbDiagnostics() — comprehensive thumb pipeline diagnostics
 // Returns detailed info about AE, temp folder, source file
 function getThumbDiagnostics(customPath){
@@ -1528,224 +1377,155 @@ function _runCmd(cmd, waitForFinish){
     }catch(e){ _writeLog("thumb","[CMD ERR] "+e.toString()); }
 }
 
-function _launchHidden(cmd){ _runCmd(cmd, false); }
-
-
-
 // ══════════════════════════════════════════════════════════
-// PYTHON THUMBNAIL RUNNER
-// Uses cv2.VideoCapture (single process, no per-frame startup overhead).
+// THUMBNAIL RUNNER — compiled thumb_gen.exe
+// Uses cv2.VideoCapture via the compiled exe (no external deps).
 // ~5-10x faster than bat-based approaches for large scene counts.
-// Falls back to AE's saveFrameToPng if Python/cv2 not available.
+// Falls back to AE's saveFrameToPng if the exe is not found.
 // ══════════════════════════════════════════════════════════
 
-// findPython() — find Python executable on Windows
-function findPython(){
-    // Try python, python3, py in PATH
-    var candidates = ["python", "python3", "py"];
-    for(var i = 0; i < candidates.length; i++){
-        try{
-            var r = system.callSystem("where " + candidates[i]);
-            if(r && r.length > 3){
-                var line = r.replace(/\r/g,"").split("\n")[0].replace(/^\s+|\s+$/g,"");
-                if(line.length > 3){
-                    // Verify it actually works
-                    var ver = system.callSystem('"' + line + '" --version');
-                    if(ver && ver.indexOf("Python") >= 0){
-                        _writeLog("thumb","[PYTHON] found: "+line+" ver="+ver.replace(/[\r\n]/g,""));
-                        return JSON.stringify({ok:true, path:line});
-                    }
-                }
-            }
-        }catch(e){}
-    }
-    // Try common Windows install paths directly
-    var appdata = "";
-    try{ appdata = system.getenv("LOCALAPPDATA") || ""; }catch(e){}
-    var winPaths = [];
-    if(appdata){
-        // Python 3.13, 3.14 etc
-        for(var v = 14; v >= 9; v--){
-            winPaths.push(appdata.replace(/\\/g,"/") + "/Programs/Python/Python3" + v + "/python.exe");
-        }
-    }
-    winPaths.push("C:/Python313/python.exe");
-    winPaths.push("C:/Python312/python.exe");
-    for(var p = 0; p < winPaths.length; p++){
-        try{
-            var pf = new File(winPaths[p]);
-            if(pf.exists){
-                _writeLog("thumb","[PYTHON] found at: "+pf.fsName);
-                return JSON.stringify({ok:true, path:pf.fsName});
-            }
-        }catch(e){}
-    }
-    _writeLog("thumb","[PYTHON] not found");
-    return JSON.stringify({ok:false, path:""});
-}
+// findThumbGen() — locate thumb_gen.exe only (no Python fallback)
+function findThumbGen(){
+    var exePath = "";
 
-// runThumbGenPy(batchJson, pythonExe)
-// Launches thumb_gen.py ASYNCHRONOUSLY (fire-and-forget) and returns
-// immediately with the results file path. JS polls that file on disk
-// (see _startResultFilePoller in main.js) instead of AE waiting for
-// Python to finish — this is the v8.3 fix for the AE-freeze bug:
-// previously _runCmd(batPath, true) blocked the ExtendScript engine
-// (and the whole AE UI) for as long as Python took to process every
-// scene (seconds to tens of seconds for 300-500 scenes).
-function runThumbGenPy(batchJson, pythonExe){
+    // PRIORITY 1: Check for thumb_gen.exe relative to plugin root (works for dev + prod)
     try{
-    var batch;
-    try{ batch = JSON.parse(batchJson); }
-    catch(e){ return JSON.stringify({ok:false, msg:"Parse error: "+e.toString()}); }
-    if(!batch || !batch.length)
-        return JSON.stringify({ok:false, msg:"Empty batch"});
+        var scriptFile = new File($.fileName);
+        var pluginRoot = scriptFile.parent.parent;
+        var exeFile = new File(pluginRoot.fullName + "/py/thumb_gen.exe");
+        if(exeFile.exists){
+            exePath = exeFile.fsName;
+            _writeLog("thumb","[EXE FOUND] "+exePath);
+        }
+    }catch(e){ _writeLog("thumb","[EXE CHECK pluginRoot] "+e); }
 
-    // Derive tmp folder from first item
-    var firstOut = batch[0].outPath;
-    var tmpDir   = firstOut.substring(0, firstOut.lastIndexOf("\\"));
-
-    // Write jobs JSON file
-    // NOTE: ExtendScript JSON.parse produces objects with numeric keys + length
-    // but NOT proper Arrays — Array methods like .map() are undefined. Always
-    // use manual for-loops on JSON-parsed arrays.
-    var jobsArr = [];
-    for(var ji = 0; ji < batch.length; ji++){
-        var item = batch[ji];
-        jobsArr.push({
-            idx:     item.idx,
-            seekSec: item.seekSec,
-            srcPath: item.srcPath,
-            outPath: item.outPath
-        });
-    }
-    var jobsData = {
-        jobs: jobsArr
-    };
-    var jobsPath = tmpDir + "\\sed_jobs.json";
-    var jobsFile = new File(jobsPath);
-    jobsFile.encoding = "UTF8";
-    if(!jobsFile.open("w")){
-        _writeLog("thumb","[PY ERR] Cannot write jobs file: "+jobsPath);
-        return JSON.stringify({ok:false, msg:"Cannot write jobs file"});
-    }
-    jobsFile.write(JSON.stringify(jobsData));
-    jobsFile.close();
-
-    // Find thumb_gen.py — try multiple locations
-    var scriptFile  = new File($.fileName);
-    var pluginRoot  = scriptFile.parent.parent;
-    var thumbGenPy  = new File(pluginRoot.fullName + "/thumb_gen.py");
-    _writeLog("thumb","[PY SEARCH] $.fileName="+$.fileName);
-    _writeLog("thumb","[PY SEARCH] pluginRoot="+pluginRoot.fullName);
-    _writeLog("thumb","[PY SEARCH] thumb_gen.py="+thumbGenPy.fsName+" exists="+thumbGenPy.exists);
-
-    // Fallback: try CEP install path via APPDATA
-    if(!thumbGenPy.exists){
+    // PRIORITY 2: Fallback to standard CEP extension path (APPDATA)
+    if(!exePath){
         try{
             var appdata = system.getenv("APPDATA");
             if(appdata){
-                var cepPy = new File(
+                var exeFile = new File(
                     appdata.replace(/\\/g,"/") +
-                    "/Adobe/CEP/extensions/com.heosan.sedpanel/thumb_gen.py"
+                    "/Adobe/CEP/extensions/com.heosan.sedpanel/py/thumb_gen.exe"
                 );
-                _writeLog("thumb","[PY SEARCH] CEP path="+cepPy.fsName+" exists="+cepPy.exists);
-                if(cepPy.exists) thumbGenPy = cepPy;
+                if(exeFile.exists){
+                    exePath = exeFile.fsName;
+                    _writeLog("thumb","[EXE FOUND APPDATA] "+exePath);
+                }
             }
-        }catch(e){ _writeLog("thumb","[PY SEARCH] APPDATA err: "+e); }
+        }catch(e){ _writeLog("thumb","[EXE CHECK APPDATA] "+e); }
     }
 
-    if(!thumbGenPy.exists){
-        try{ jobsFile.remove(); }catch(e){}
-        _writeLog("thumb","[PY ERR] thumb_gen.py not found anywhere");
-        return JSON.stringify({ok:false, msg:"thumb_gen.py not found at: "+thumbGenPy.fsName});
+    if(!exePath){
+        _writeLog("thumb","[EXE] thumb_gen.exe not found");
     }
 
-    // Output paths — results JSON + stderr log
-    var resultsPath = tmpDir + "\\sed_results.json";
-    var errPath      = tmpDir + "\\sed_py_err.txt";
-    var donePath     = tmpDir + "\\sed_py_done.flag";
-
-    // Delete stale files from any previous run so the JS poller never
-    // picks up leftovers from a prior session
-    try{ var rf=new File(resultsPath); if(rf.exists) rf.remove(); }catch(e){}
-    try{ var ef=new File(errPath);     if(ef.exists) ef.remove(); }catch(e){}
-    try{ var df=new File(donePath);    if(df.exists) df.remove(); }catch(e){}
-
-    var dq      = String.fromCharCode(34);
-    var batPath = tmpDir + "\\sed_py_run.bat";
-    var batFile = new File(batPath);
-    batFile.encoding = "UTF8";
-
-    // Build bat: run python, redirect stdout to results, stderr to err file,
-    // then write a "done" flag file LAST — this is what the JS poller waits
-    // for, guaranteeing the results file is fully flushed before JS reads it.
-    // Finally the bat deletes itself.
-    var nl = "\r\n";
-    var batContent =
-        "@echo off" + nl +
-        dq + pythonExe + dq +
-        " " + dq + thumbGenPy.fsName + dq +
-        " " + dq + jobsPath + dq +
-        " > " + dq + resultsPath + dq +
-        " 2> " + dq + errPath + dq + nl +
-        "echo done > " + dq + donePath + dq + nl +
-        "del /f /q " + dq + batPath + dq + nl;
-
-    _writeLog("thumb","[PY RUN-ASYNC] batch="+batch.length+
-        " python="+pythonExe+" script="+thumbGenPy.fsName);
-
-    if(!batFile.open("w")){
-        try{ jobsFile.remove(); }catch(e){}
-        _writeLog("thumb","[PY ERR] Cannot write bat: "+batPath);
-        return JSON.stringify({ok:false, msg:"Cannot write bat file"});
-    }
-    batFile.write(batContent);
-    batFile.close();
-
-    // Fire-and-forget — use VBScript + WScript.Shell.Run for TRUE async launch.
-    // system.callSystem(start/start) can still block ExtendScript when Python
-    // runs for a long time (300+ scenes). WScript.Shell.Run with False never
-    // blocks — it returns immediately and the child process is fully detached.
-    var vbsPath = tmpDir + "\\sed_py_launch.vbs";
-    try{
-        var vbsFile = new File(vbsPath);
-        vbsFile.encoding = "UTF8";
-        vbsFile.open("w");
-        vbsFile.write('CreateObject("WScript.Shell").Run "' + batPath + '", 0, False');
-        vbsFile.close();
-        // cscript runs the VBS and exits instantly (VBS just calls Run+return).
-        // callSystem blocks ~50ms while cscript starts/run/exits — NOT while
-        // Python processes scenes. Python is fully detached in its own process.
-        system.callSystem('cscript.exe //Nologo //B "' + vbsPath + '"');
-    }catch(le){
-        _writeLog("thumb","[PY VBS FALLBACK] "+le);
-        _runCmd(batPath, false);
-    }
-
-    _writeLog("thumb","[PY LAUNCHED] async, non-blocking, donePath="+donePath);
-
-    // Tell JS where to poll. jobsFile cleanup is deferred to the bat's own
-    // lifetime since Python needs to read it after we return.
     return JSON.stringify({
-        ok: true,
-        async: true,
-        resultsPath: resultsPath,
-        donePath: donePath,
-        errPath: errPath,
-        jobsPath: jobsPath,
-        expectedCount: batch.length
+        ok: !!exePath,
+        exePath: exePath || ""
     });
+}
+
+
+// runThumbGenExe(batchJson, exePath)
+// Launches thumb_gen.exe ASYNCHRONOUSLY (fire-and-forget) and returns
+// immediately with the results file path. JS polls that file on disk
+// (see _startResultFilePoller in main.js) instead of AE waiting for
+// the exe to finish — keeps AE fully responsive.
+function runThumbGenExe(batchJson, exePath){
+    try{
+        var batch = JSON.parse(batchJson);
+        if(!batch || batch.length === 0)
+            return JSON.stringify({ok:true, async:true, expectedCount:0});
+
+        // Temp files for IPC
+        var tmpDir = Folder.temp.fsName;
+        var jobsPath = tmpDir + "\\sed_jobs_" + Math.random().toString(36).substring(2, 10) + ".json";
+        var resultsPath = tmpDir + "\\sed_results.json";
+        var errPath = tmpDir + "\\sed_exe_err.txt";
+        var donePath = tmpDir + "\\sed_exe_done.flag";
+
+        var jobsFile = new File(jobsPath);
+        jobsFile.encoding = "UTF8";
+        if(!jobsFile.open("w")){
+            _writeLog("thumb","[EXE ERR] Cannot write jobs file: "+jobsPath);
+            return JSON.stringify({ok:false, msg:"Cannot write jobs file"});
+        }
+
+        var jobsData = {jobs: batch};
+        jobsFile.write(JSON.stringify(jobsData));
+        jobsFile.close();
+
+        // Clean stale files
+        try{ var rf=new File(resultsPath); if(rf.exists) rf.remove(); }catch(e){}
+        try{ var ef=new File(errPath);     if(ef.exists) ef.remove(); }catch(e){}
+        try{ var df=new File(donePath);    if(df.exists) df.remove(); }catch(e){}
+
+        var dq = String.fromCharCode(34);
+        var batPath = tmpDir + "\\sed_exe_run.bat";
+        var batFile = new File(batPath);
+        batFile.encoding = "UTF8";
+
+        var nl = "\r\n";
+        var cmdLine = dq + exePath + dq + " " + dq + jobsPath + dq;
+        var batContent =
+            "@echo off" + nl +
+            cmdLine +
+            " > " + dq + resultsPath + dq +
+            " 2> " + dq + errPath + dq + nl +
+            "echo done > " + dq + donePath + dq + nl +
+            "del /f /q " + dq + batPath + dq + nl;
+
+        _writeLog("thumb","[EXE RUN-ASYNC] batch="+batch.length+
+            " exe="+exePath);
+
+        if(!batFile.open("w")){
+            try{ jobsFile.remove(); }catch(e){}
+            _writeLog("thumb","[EXE ERR] Cannot write bat: "+batPath);
+            return JSON.stringify({ok:false, msg:"Cannot write bat file"});
+        }
+        batFile.write(batContent);
+        batFile.close();
+
+        // Fire-and-forget via VBScript
+        var vbsPath = tmpDir + "\\sed_exe_launch.vbs";
+        try{
+            var vbsFile = new File(vbsPath);
+            vbsFile.encoding = "UTF8";
+            vbsFile.open("w");
+            vbsFile.write('CreateObject("WScript.Shell").Run "' + batPath + '", 0, False');
+            vbsFile.close();
+            system.callSystem('cscript.exe //Nologo //B "' + vbsPath + '"');
+        }catch(le){
+            _writeLog("thumb","[EXE VBS FALLBACK] "+le);
+            _runCmd(batPath, false);
+        }
+
+        _writeLog("thumb","[EXE LAUNCHED] async, non-blocking, donePath="+donePath);
+
+        return JSON.stringify({
+            ok: true,
+            async: true,
+            resultsPath: resultsPath,
+            donePath: donePath,
+            errPath: errPath,
+            jobsPath: jobsPath,
+            expectedCount: batch.length
+        });
     }catch(e){
-        _writeLog("thumb","[PY RUN THROW] "+e.toString()+" line="+(e.line||0));
+        _writeLog("thumb","[EXE RUN THROW] "+e.toString()+" line="+(e.line||0));
         try{ if(jobsFile) jobsFile.remove(); }catch(ee){}
-        return JSON.stringify({ok:false, msg:"runThumbGenPy error: "+e.toString(), line:e.line||0});
+        return JSON.stringify({ok:false, msg:"runThumbGenExe error: "+e.toString(), line:e.line||0});
     }
 }
 
 
-function runPendingThumb(){
+function runPendingThumb(ctrlDir){
     try{
-        var ctrlPath = Folder.temp.fsName.replace(/\\/g,"/") + "/sed_thumb_ctrl.json";
+        // ctrlDir is the SAME directory JS wrote the ctrl file to.
+        // Without it we'd have to guess Folder.temp — which may NOT match
+        // the custom temp folder JS used (ctrl-file path mismatch bug).
+        var ctrlPath = (ctrlDir ? String(ctrlDir).replace(/\\/g,"/") : Folder.temp.fsName.replace(/\\/g,"/")) + "/sed_thumb_ctrl.json";
         var ctrlFile = new File(ctrlPath);
         if(!ctrlFile.exists)
             return JSON.stringify({ok:false, msg:"No control file: "+ctrlPath});
@@ -1760,9 +1540,13 @@ function runPendingThumb(){
         try{ ctrl = JSON.parse(ctrlJson); }
         catch(e){ return JSON.stringify({ok:false, msg:"Control parse error: "+e}); }
 
-        _writeLog("thumb","[CTRL] batch="+(ctrl.batch?ctrl.batch.length:0)+" py="+ctrl.pythonExe);
+        _writeLog("thumb","[CTRL] batch="+(ctrl.batch?ctrl.batch.length:0)+" mode=exe");
 
-        return runThumbGenPy(JSON.stringify(ctrl.batch), ctrl.pythonExe);
+        if(!ctrl.exePath){
+            _writeLog("thumb","[CTRL] no exePath → fail fast");
+            return JSON.stringify({ok:false, msg:"thumb_gen.exe path missing from ctrl file"});
+        }
+        return runThumbGenExe(JSON.stringify(ctrl.batch), ctrl.exePath);
     }catch(e){
         _writeLog("thumb","[RUN PENDING THROW] "+e.toString()+" line="+(e.line||0));
         return JSON.stringify({ok:false, msg:"runPendingThumb error: "+e.toString()});
@@ -1770,11 +1554,26 @@ function runPendingThumb(){
 }
 
 // ══════════════════════════════════════════════════════════
+// THUMB GEN CANCEL — kill background processes
+// ══════════════════════════════════════════════════════════
+function _cancelThumbGen(){
+    try{
+          // Kill ffmpeg processes spawned by this plugin
+          system.callSystem('cmd /C "taskkill /F /IM ffmpeg.exe /T 2>nul"');
+          // Kill compiled thumb_gen.exe (and any child processes)
+          system.callSystem('cmd /C "taskkill /F /IM thumb_gen.exe /T 2>nul"');
+    }catch(e){
+        _writeLog("thumb","[CANCEL KILL] "+e.toString());
+    }
+    return JSON.stringify({ok:true});
+}
+
+// ══════════════════════════════════════════════════════════
 // FULL DIAGNOSTIC — getFullDiagnostics()
 // Tests every pipeline component and reports status.
 // Called from JS when user clicks Diagnose button.
 // ══════════════════════════════════════════════════════════
-function getFullDiagnostics(customPath, pythonExe){
+function getFullDiagnostics(customPath){
     var d = {
         ok: true,
         aeVersion:        "?",
@@ -1786,14 +1585,9 @@ function getFullDiagnostics(customPath, pythonExe){
         // source file
         sourceFile:       "",
         sourceExists:     false,
-        // Python
-        pythonExe:        pythonExe || "",
-        pythonExists:     false,
-        pythonVersion:    "",
-        pythonRunsOk:     false,
-        pythonRunError:   "",
-        thumbGenPyPath:   "",
-        thumbGenPyExists: false,
+        // thumbnail generator exe
+        thumbGenExePath:   "",
+        thumbGenExeExists: false,
         // CEP bridge
         jsFn_dollarFileName: $.fileName,
         pluginRootFromDollar: "",
@@ -1842,59 +1636,23 @@ function getFullDiagnostics(customPath, pythonExe){
         d.pluginRootFromDollar = pr.fullName;
     }catch(e){ d.errors.push("$.fileName: "+e); }
 
-    // ── thumb_gen.py ──
+    // ── thumb_gen.exe ──
     try{
         // Try $.fileName path
-        var tgFile = new File(d.pluginRootFromDollar + "/thumb_gen.py");
-        d.thumbGenPyPath   = tgFile.fsName;
-        d.thumbGenPyExists = tgFile.exists;
+        var tgFile = new File(d.pluginRootFromDollar + "/py/thumb_gen.exe");
+        d.thumbGenExePath   = tgFile.fsName;
+        d.thumbGenExeExists = tgFile.exists;
         // Try APPDATA fallback
-        if(!d.thumbGenPyExists){
+        if(!d.thumbGenExeExists){
             var appdata = system.getenv("APPDATA") || "";
             if(appdata){
                 var tg2 = new File(appdata.replace(/\\/g,"/")+
-                    "/Adobe/CEP/extensions/com.heosan.sedpanel/thumb_gen.py");
-                if(tg2.exists){ tgFile=tg2; d.thumbGenPyPath=tg2.fsName; d.thumbGenPyExists=true; }
+                    "/Adobe/CEP/extensions/com.heosan.sedpanel/py/thumb_gen.exe");
+                if(tg2.exists){ tgFile=tg2; d.thumbGenExePath=tg2.fsName; d.thumbGenExeExists=true; }
             }
         }
-        if(!d.thumbGenPyExists) d.errors.push("thumb_gen.py not found at: "+d.thumbGenPyPath);
-    }catch(e){ d.errors.push("thumbGenPy: "+e); }
-
-    // ── Python executable ──
-    try{
-        d.pythonExists = (new File(pythonExe)).exists;
-        if(!d.pythonExists){
-            // Try finding it
-            var wp = system.callSystem("where python");
-            if(wp && wp.length>3){
-                var wl = wp.replace(/\r/g,"").split("\n")[0].replace(/^\s+|\s+$/g,"");
-                if(wl && (new File(wl)).exists){ d.pythonExe=wl; d.pythonExists=true; }
-            }
-        }
-        if(d.pythonExists){
-            // Test run python --version
-            var tmpPy = _getTmp(customPath).fullName+"/sed_diag_pyver.txt";
-            system.callSystem('"'+d.pythonExe+'" --version > "'+tmpPy+'" 2>&1');
-            var pvf = new File(tmpPy);
-            if(pvf.exists){ pvf.encoding="UTF8"; pvf.open("r"); d.pythonVersion=pvf.read().replace(/[\r\n]+/g," ").substring(0,50); pvf.close(); pvf.remove(); d.pythonRunsOk=true; }
-            else { d.pythonRunError="--version produced no output"; }
-        } else { d.errors.push("Python not found: "+pythonExe); }
-    }catch(e){ d.errors.push("python: "+e); }
-
-    // ── cv2 check ──
-    try{
-        if(d.pythonExists){
-            var tmpCv = _getTmp(customPath).fullName+"/sed_diag_cv2.txt";
-            system.callSystem('"'+d.pythonExe+'" -c "import cv2; print(cv2.__version__)" > "'+tmpCv+'" 2>&1');
-            var cvf = new File(tmpCv);
-            if(cvf.exists){ cvf.encoding="UTF8"; cvf.open("r"); var cvTxt=cvf.read().replace(/[\r\n]+/g," "); cvf.close(); cvf.remove();
-                if(cvTxt.indexOf("ModuleNotFoundError")>=0||cvTxt.indexOf("ImportError")>=0){
-                    d.cv2Available=false; d.cv2Error=cvTxt.substring(0,100);
-                    d.errors.push("cv2 not installed: "+d.cv2Error);
-                } else { d.cv2Available=true; d.cv2Version=cvTxt.trim().substring(0,20); }
-            }
-        }
-    }catch(e){ d.errors.push("cv2: "+e); }
+        if(!d.thumbGenExeExists) d.errors.push("thumb_gen.exe not found at: "+d.thumbGenExePath);
+    }catch(e){ d.errors.push("thumbGenExe: "+e); }
 
     // ── Log folder ──
     try{

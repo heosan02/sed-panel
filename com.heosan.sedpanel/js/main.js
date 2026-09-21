@@ -1,4 +1,4 @@
-﻿/* SED Panel v3.2 - main.js - (c) 2026 Heosan */
+﻿/* SED Panel v3.4 - main.js - (c) 2026 Heosan */
 /* global CSInterface */
 (function(){
 "use strict";
@@ -11,8 +11,11 @@ window.onerror = function(msg, url, line, col, err){
       _el.textContent = "⚠ JS Error";
   }catch(e){}
   try{
+    // ponytail: escape message before injecting into JSX string literal
+    var _m = String(msg === undefined || msg === null ? "" : msg).replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/\r?\n/g," ");
+    var _u = String(url === undefined || url === null ? "" : url).replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/\r?\n/g," ");
     var _cs = new CSInterface();
-    _cs.evalScript('_writeLog("thumb","[GLOBAL ERROR] msg="+msg+" url="+url+" line="+line)');
+    _cs.evalScript('_writeLog("thumb","[GLOBAL ERROR] msg='+_m+' url='+_u+' line='+line+'")');
   }catch(e){}
 };
 
@@ -23,7 +26,7 @@ var TMP_KEY = "sed_panel_custom_tmp";
 var THUMB_MODE_KEY = "sed_panel_thumb_mode";
 var UPDATE_NOTIF_KEY = "sed_panel_update_notif";
 var UPDATE_LATER_KEY = "sed_panel_update_later_at";
-var CUR_VER = "3.2.0";
+var CUR_VER = "3.4.0";
 var GH_REPO = "heosan02/sed-panel";
 
 // ═══ i18n ══════════════════════════════════════════════
@@ -52,6 +55,7 @@ var T={
     update_view:"View Release",
     update_note:"If notification is annoying, turn it off in About.",
     update_check:"Check",
+    update_checking:"Checking…",
     update_check_fail:"Update check failed.",
     settings_title:"Settings",
     settings_desc:"Panel preferences and thumbnail temp folder.",
@@ -103,7 +107,7 @@ var T={
     // Thumbnail mode
     thumb_mode:"Thumbnail Mode",
     thumb_mode_desc:"Choose how thumbnails are generated.",
-    thumb_mode_fast:"Fast (Python cv2) — generate all at once with progress popup",
+    thumb_mode_fast:"Fast (thumb_gen.exe) — generate all at once with progress popup",
     thumb_mode_lazy:"Lazy (AE) — generate one-by-one, no popup",
     thumb_mode_saved:"Thumbnail mode saved.",
     // Merge Scene (v8.3)
@@ -144,7 +148,7 @@ var T={
     ob_keep_tip:"This operation <strong>cannot be undone</strong>! Make sure marked scenes are correct before executing.",
     ob_export_desc:"Mark scenes to render, then click <strong>Export → Render Queue</strong>.<br>Each scene becomes a separate composition in AE Render Queue.",
     ob_export_tip:"After export, open Window → Render Queue, set output path, then Render All.",
-    ob_thumb_desc:"Click <strong>🖼 Thumbs</strong> to generate thumbnails for each scene.<br><strong>Fast mode</strong> (default) uses Python cv2 — generates all at once with a progress popup.<br><strong>Lazy mode</strong> uses AE's saveFrameToPng — thumbnails appear one-by-one without a popup.<br>Switch modes in <strong>Settings → Thumbnail Mode</strong>.",
+    ob_thumb_desc:"Click <strong>🖼 Thumbs</strong> to generate thumbnails for each scene.<br><strong>Fast mode</strong> (default) uses thumb_gen.exe — generates all at once with a progress popup.<br><strong>Lazy mode</strong> uses AE's saveFrameToPng — thumbnails appear one-by-one without a popup.<br>Switch modes in <strong>Settings → Thumbnail Mode</strong>.",
     ob_thumb_tip:"Thumbnails are rendered to the temp folder, then automatically cleaned after reading. Lazy mode is best for quick previews; Fast mode is best for speed with large scene counts.",
     ob_ready_desc:"All main features explained.<br>Open <strong>About → Tutorial</strong> anytime to reopen this guide.",
     ob_ready_tip:"Set language and temp folder in Settings. Custom temp folder helps with thumbnails if AE cannot write to the extension folder.",
@@ -173,6 +177,7 @@ var T={
     update_view:"Lihat Rilis",
     update_note:"Jika notif mengganggu bisa dimatikan di about.",
     update_check:"Cek",
+    update_checking:"Memeriksa…",
     update_check_fail:"Pengecekan update gagal.",
     settings_title:"Pengaturan",
     settings_desc:"Preferensi panel dan folder temp thumbnail.",
@@ -224,7 +229,7 @@ var T={
     // Thumbnail mode
     thumb_mode:"Mode Thumbnail",
     thumb_mode_desc:"Pilih cara generate thumbnail.",
-    thumb_mode_fast:"Fast (Python cv2) — generate semua sekaligus dengan popup progres",
+    thumb_mode_fast:"Fast (thumb_gen.exe) — generate semua sekaligus dengan popup progres",
     thumb_mode_lazy:"Lazy (AE) — generate satu per satu, tanpa popup",
     thumb_mode_saved:"Mode thumbnail disimpan.",
     // Merge Scene (v8.3)
@@ -265,7 +270,7 @@ var T={
     ob_keep_tip:"Operasi ini <strong>tidak bisa di-undo</strong>! Pastikan scene yang ditandai sudah benar sebelum eksekusi.",
     ob_export_desc:"Tandai scene yang ingin dirender, lalu klik <strong>Export → Render Queue</strong>.<br>Setiap scene akan menjadi komposisi terpisah di Render Queue AE.",
     ob_export_tip:"Setelah export, buka Window → Render Queue, atur output path, lalu Render All.",
-    ob_thumb_desc:"Klik <strong>🖼 Thumbs</strong> untuk generate thumbnail dari setiap scene.<br><strong>Mode Fast</strong> (default) pakai Python cv2 — generate semua sekaligus dengan popup progres.<br><strong>Mode Lazy</strong> pakai AE saveFrameToPng — thumbnail muncul satu per satu tanpa popup.<br>Ganti mode di <strong>Settings → Mode Thumbnail</strong>.",
+    ob_thumb_desc:"Klik <strong>🖼 Thumbs</strong> untuk generate thumbnail dari setiap scene.<br><strong>Mode Fast</strong> (default) pakai thumb_gen.exe — generate semua sekaligus dengan popup progres.<br><strong>Mode Lazy</strong> pakai AE saveFrameToPng — thumbnail muncul satu per satu tanpa popup.<br>Ganti mode di <strong>Settings → Mode Thumbnail</strong>.",
     ob_thumb_tip:"Thumbnail dirender ke folder temp, lalu dibersihkan otomatis. Mode Lazy cocok untuk preview cepat; Mode Fast paling cepat untuk jumlah scene besar.",
     ob_ready_desc:"Semua fitur utama sudah dijelaskan.<br>Buka <strong>About → Tutorial</strong> kapan saja untuk membuka panduan ini lagi.",
     ob_ready_tip:"Atur bahasa dan folder temp di Settings. Folder temp kustom membantu thumbnail jika AE tidak bisa menulis ke folder ekstensi.",
@@ -273,7 +278,8 @@ var T={
 };
 function t(k,v){
   var s=(T[LANG]||T.en)[k]||k;
-  if(v) Object.keys(v).forEach(function(x){s=s.replace(new RegExp("{"+x+"}","g"),v[x]);});
+  // ponytail: function replacer so values containing "$&"/"$'" are literal
+  if(v) Object.keys(v).forEach(function(x){var val=v[x];s=s.replace(new RegExp("{"+x+"}","g"),function(){return val;});});
   return s;
 }
 function applyI18n(){
@@ -290,8 +296,7 @@ var S={
   thumbs:{}, thumbPaths:{}, thumbDone:0, thumbLoading:false,
   diagInfo:null,
   customTmpPath:"",
-  thumbMode:"fast",
-  lastActiveIdx:-1
+  thumbMode:"fast"
 };
 
 // ═══ DOM helpers ════════════════════════════════════════
@@ -318,7 +323,8 @@ function callHost(fn,args,cb){
 // ── JS-side log (written via JSX _writeLog) ──────────────
 function _jsLog(category, msg){
   try{
-    var escaped = msg.replace(/\\/g,"\\\\").replace(/"/g,'\\"');
+    // ponytail: also strip newlines — raw \n would break the JSX string literal
+    var escaped = String(msg === undefined || msg === null ? "" : msg).replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/\r?\n/g," ");
     evalScript('_writeLog("'+category+'","'+escaped+'")', function(){});
   }catch(e){}
 }
@@ -558,11 +564,11 @@ if(_sparkCanvas){
 
 // ═══ Thumbnails ═════════════════════════════════════════
 
-// ── Python & source state (resolved once per session) ────
+// ── Thumbnail generator & source state (resolved once per session) ────
 var _state = {
-  pyChecked:  false,
-  pyAvail:    false,
-  pyPath:     "",
+  genChecked: false,
+  genAvail:   false,
+  exePath:    "",
   srcInfoDone:    false,
   sourcePath:     "",
   layerStartSec:  0,
@@ -640,27 +646,28 @@ function _resolveTmpPath(cb){
   });
 }
 
-// ── Resolve Python executable (checked once) ─────────────
-function _resolvePython(cb){
-  if(_state.pyChecked){ cb(_state.pyAvail); return; }
-  callHost("findPython",[],function(res){
-    _state.pyChecked = true;
-    _state.pyAvail   = !!(res && res.path);
-    _state.pyPath    = (res && res.path) || "";
-    _jsLog("thumb","[PYTHON] avail="+_state.pyAvail+" path="+_state.pyPath);
-    cb(_state.pyAvail);
+// ── Resolve thumb_gen.exe (checked once) ──
+function _resolveThumbGen(cb){
+  if(_state.genChecked){ cb(_state.genAvail); return; }
+  callHost("findThumbGen",[],function(res){
+    _state.genChecked = true;
+    _state.genAvail   = !!(res && res.ok);
+    _state.exePath    = (res && res.exePath) || "";
+    _jsLog("thumb","[GEN] avail="+_state.genAvail+" exe="+_state.exePath);
+    cb(_state.genAvail);
   });
 }
 
 // ── Thumbnail pipeline — async polling engine ─────────────
 //
-// Uses Python cv2.VideoCapture via async file-based bridge.
-// Python writes results JSON to disk; JS polls for the flag file.
-// This keeps AE fully responsive while Python processes all frames.
+// Uses thumb_gen.exe (cv2.VideoCapture) via async file-based bridge.
+// The exe writes results JSON to disk; JS polls for the flag file.
+// This keeps AE fully responsive while the exe processes all frames.
 
 var _thumbCancelled = false; // cancel flag for thumb generation
 var _readCancelled  = false; // cancel flag for read markers
 var _thumbGenFinished = false; // guard against double _finishThumbGen call
+var _thumbCancelPath = ""; // cancel signal file path for exe jobs
 var _thumbStartTime = 0; // timestamp when generation started (for ETA)
 var _PY_POLL_INTERVAL = 150;
 function _fmtDuration(sec){
@@ -671,15 +678,15 @@ function _fmtDuration(sec){
   return m + "m " + s + "s";
 }
 
-// ── Python results-file poller (v8.3) ─────────────────────
-// Python writes ONE results JSON file, so we poll for a small "done"
+// ── Results-file poller ───────────────────────────────────
+// thumb_gen.exe writes ONE results JSON file, so we poll for a small "done"
 // flag file instead of scanning hundreds of paths.
 // Once the flag appears, we read+parse the results file exactly once.
-// This keeps AE fully responsive while Python processes all frames —
-// no evalScript call ever blocks waiting for Python to finish.
+// This keeps AE fully responsive while the exe processes all frames —
+// no evalScript call ever blocks waiting for the exe to finish.
 var _pyPollTimer   = null;
 var _pyPollElapsed = 0;
-var _pyPollTimeout = 300000; // 300s (5min) max wait — Python cv2 can take 1-2s per scene for 300+ scenes
+var _pyPollTimeout = 300000; // 300s (5min) max wait — thumb_gen.exe can take 1-2s per scene for 300+ scenes
 function _stopPyPoller(){
   if(_pyPollTimer){ clearInterval(_pyPollTimer); _pyPollTimer=null; }
 }
@@ -689,10 +696,10 @@ function _startPyResultPoller(donePath, resultsPath, errPath, expectedPaths, onD
   var renderRate = 3; // default estimate: 3 scenes/sec
   var totalScenes = S.scenes.length || 1;
   var etaTotalSec = Math.max(1, Math.round(totalScenes / renderRate));
-  _jsLog("thumb","[PYPOLL] watching donePath="+donePath+" scenes="+totalScenes+" eta="+etaTotalSec+"s");
+  _jsLog("thumb","[POLL] watching donePath="+donePath+" scenes="+totalScenes+" eta="+etaTotalSec+"s");
 
   // ═══════════════════════════════════════════════════════════
-  // Phase 1 — Render: show ETA countdown while Python writes
+  // Phase 1 — Render: show ETA countdown while the exe writes
   // all JPEGs to the temp folder. No file injection yet.
   // ═══════════════════════════════════════════════════════════
   _pyPollTimer = setInterval(function(){
@@ -712,7 +719,7 @@ function _startPyResultPoller(donePath, resultsPath, errPath, expectedPaths, onD
     var cnt = $("thumb-progress-count");
     if(cnt) cnt.textContent = "\u2248" + _fmtDuration(remaining);
 
-    // Check for Python done flag
+    // Check for done flag
     var flagExists = false;
     try{
       var stat = window.cep.fs.stat(donePath.replace(/\\/g,"/"));
@@ -721,7 +728,7 @@ function _startPyResultPoller(donePath, resultsPath, errPath, expectedPaths, onD
 
     if(flagExists){
       _stopPyPoller();
-      _jsLog("thumb","[PYPOLL] done flag found after "+(elapsedSec)+"s → load phase");
+      _jsLog("thumb","[POLL] done flag found after "+(elapsedSec)+"s → load phase");
       // Flush delay, then enter Phase 2
       setTimeout(function(){
         _startPyLoadPhase(donePath, resultsPath, errPath, onDone, onFail);
@@ -731,13 +738,13 @@ function _startPyResultPoller(donePath, resultsPath, errPath, expectedPaths, onD
 
     if(_pyPollElapsed >= _pyPollTimeout){
       _stopPyPoller();
-      onFail("Python timed out after "+(_pyPollTimeout/1000)+"s");
+      onFail("thumb_gen.exe timed out after "+(_pyPollTimeout/1000)+"s");
     }
   }, _PY_POLL_INTERVAL);
 }
 
 // ═══════════════════════════════════════════════════════════
-// Phase 2 — Load: Python finished, all JPEGs on disk.
+// Phase 2 — Load: exe finished, all JPEGs on disk.
 // Read results JSON and inject thumbnails one-by-one with
 // staggered setTimeout so user sees 1/311 → 2/311 → … → 311/311.
 // ═══════════════════════════════════════════════════════════
@@ -752,11 +759,11 @@ function _startPyLoadPhase(donePath, resultsPath, errPath, onDone, onFail){
   try{ window.cep.fs.deleteFile(resultsPath.replace(/\\/g,"/")); }catch(e){}
   try{ window.cep.fs.deleteFile(errPath.replace(/\\/g,"/")); }catch(e){}
 
-  if(!resultsJson){ onFail("Python results file unreadable"); return; }
+  if(!resultsJson){ onFail("thumb_gen.exe results file unreadable"); return; }
   var parsed;
   try{ parsed = JSON.parse(resultsJson); }
-  catch(e){ onFail("Bad JSON from Python: "+resultsJson.substring(0,150)); return; }
-  if(!parsed.ok){ onFail(parsed.msg || "unknown Python error"); return; }
+  catch(e){ onFail("Bad JSON from thumb_gen.exe: "+resultsJson.substring(0,150)); return; }
+  if(!parsed.ok){ onFail(parsed.msg || "thumb_gen.exe error"); return; }
   var results = parsed.results || [];
   // Sort by scene index to guarantee correct order
   results.sort(function(a,b){ return a.idx - b.idx; });
@@ -808,7 +815,7 @@ function _doStartThumb(){
   setThumbProgress(0, S.scenes.length);
 
   // Reset all per-session state
-  _state.pyChecked    = false;
+  _state.genChecked   = false;
   _state.srcInfoDone  = false;
   _state.tmpPath      = "";
 
@@ -844,11 +851,11 @@ function _doStartThumb(){
     return batch;
   }
 
-  // ── Pipeline: Python → AE saveFrameToPng ──
-  _resolvePython(function(pyAvail){
+  // ── Pipeline: thumb_gen.exe → AE saveFrameToPng ──
+  _resolveThumbGen(function(genAvail){
     _resolveSourceInfo(function(srcOk){
       _resolveTmpPath(function(tmpPath){
-        _jsLog("thumb","[INFO] python="+pyAvail+" srcOk="+srcOk+" tmp="+tmpPath);
+        _jsLog("thumb","[INFO] gen="+genAvail+" srcOk="+srcOk+" tmp="+tmpPath);
 
         if(!srcOk || !tmpPath){
           _jsLog("thumb","[FALLBACK] no src/tmp → AE pipeline");
@@ -862,75 +869,76 @@ function _doStartThumb(){
             S.thumbPaths = paths;
             S.thumbDone = count;
             setThumbCount(count);
+            // Stop any exe/poller that may have already started (async race)
+            _stopPyPoller();
+            evalScript("_cancelThumbGen()", function(){});
             _finishThumbGen();
           }
         });
 
         var batch = _buildBatch(tmpPath);
+        // tmpWin must be defined in THIS scope — the tmpWin inside
+        // _buildBatch() is local to that function (ReferenceError bug fix).
+        var tmpWin = tmpPath.replace(/\//g,"\\").replace(/\\+$/, "");
 
-        if(pyAvail){
-          _jsLog("thumb","[PIPELINE] Python cv2");
+        // Cache may have finished this session while the resolves were running
+        if(_thumbGenFinished) return;
 
-          var _ctrl = {
-            mode:      "python",
+        if(genAvail){
+          _jsLog("thumb","[PIPELINE] Compiled EXE (thumb_gen.exe)");
+
+          var cancelPath = tmpWin + "\\sed_thumb_cancel_" + Date.now() + "_" + Math.floor(Math.random()*999999) + ".flag";
+        _thumbCancelPath = cancelPath;
+
+        var _ctrl = {
+            mode:      "exe",
             batch:     batch,
-            pythonExe: _state.pyPath
+            exePath:   _state.exePath,
+            cancelPath: cancelPath
           };
           var _ctrlJson = JSON.stringify(_ctrl);
 
-          evalScript("getSystemTempPath()", function(_stRes){
-            var _st;
-            try{ _st = JSON.parse(_stRes); }
-            catch(e){ _st = {ok:false}; }
-            if(!_st || !_st.ok || !_st.path || !window.cep || !window.cep.fs){
-              _jsLog("thumb","[PY] Cannot get sys temp → AE fallback");
-              _captureNext(0);
-              return;
-            }
-            var _ctrlPath = _st.path.replace(/\\/g,"/") + "/sed_thumb_ctrl.json";
-            try{
-              window.cep.fs.writeFile(_ctrlPath, _ctrlJson);
-            }catch(we){
-              _jsLog("thumb","[PY] ctrl writeFile fail: "+(we+"").substring(0,80)+" → AE fallback");
-              _captureNext(0);
-              return;
-            }
-            _jsLog("thumb","[PY CTRL WROTE] path="+_ctrlPath);
+          // Use tmpPath directly (already resolved by _resolveTmpPath) — no extra evalScript
+          var _ctrlPath = tmpPath.replace(/\\/g,"/") + "/sed_thumb_ctrl.json";
+          try{
+            window.cep.fs.writeFile(_ctrlPath, _ctrlJson);
+          }catch(we){
+            _jsLog("thumb","[EXE] ctrl writeFile fail: "+(we+"").substring(0,80)+" → AE fallback");
+            _captureNext(0);
+            return;
+          }
+          _jsLog("thumb","[EXE CTRL WROTE] path="+_ctrlPath);
 
-            evalScript("runPendingThumb()", function(rawResult){
+          // Pass the tmp dir so host.jsx reads the ctrl file from the same
+          // folder JS wrote it to (prevents Folder.temp mismatch)
+          evalScript("runPendingThumb(" + JSON.stringify(tmpPath.replace(/\\/g,"/")) + ")", function(rawResult){
               var res;
               try{ res = JSON.parse(rawResult); }
               catch(e){ res = {ok:false, msg:rawResult}; }
-              _jsLog("thumb","[PY LAUNCH RESULT] ok="+(res?res.ok:false)+" async="+(res&&res.async));
+              _jsLog("thumb","[EXE LAUNCH RESULT] ok="+(res?res.ok:false)+" async="+(res&&res.async));
 
               if(res && res.ok && res.async && res.donePath){
+                _thumbCancelPath = res.cancelPath || _thumbCancelPath;
                 _startPyResultPoller(res.donePath, res.resultsPath, res.errPath, batch,
                   function onPyDone(results){
+                    if(S.thumbDone < S.scenes.length){
+                      _fallbackToAE("exe finished but only "+S.thumbDone+"/"+S.scenes.length+" scenes rendered");
+                      return;
+                    }
                     if(!_thumbGenFinished) _finishThumbGen();
                   },
                   function onPyFail(msg){
-                    _jsLog("thumb","[PY FAIL] msg="+msg+" (partial="+S.thumbDone+")");
-                    if(_thumbCancelled) return;
-                    var remaining = batch.filter(function(b){
-                      return S.thumbs[b.idx] === undefined;
-                    });
-                    if(remaining.length === 0){
-                      if(!_thumbGenFinished) _finishThumbGen();
-                    } else if(S.thumbDone > 0){
-                      if(!_thumbGenFinished) _finishThumbGen();
-                    } else {
-                      _captureNext(0);
-                    }
+                    _jsLog("thumb","[EXE FAIL] msg="+msg+" (partial="+S.thumbDone+")");
+                    _fallbackToAE(msg);
                   }
                 );
               } else {
-                _jsLog("thumb","[PY FAIL] msg="+(res&&(res.pyMsg||res.msg)||"unknown")+" → AE fallback");
+                _jsLog("thumb","[EXE FAIL] msg="+(res&&(res.pyMsg||res.msg)||"unknown")+" → AE fallback");
                 _captureNext(0);
               }
             });
-          });
-        } else {
-            _jsLog("thumb","[PIPELINE] No Python → AE fallback");
+      } else {
+            _jsLog("thumb","[PIPELINE] No thumb_gen.exe → AE fallback");
             _captureNext(0);
         }
       }); // end _resolveTmpPath
@@ -952,7 +960,7 @@ function _startThumbAuto(){
   _doStartThumb();
 }
 
-// acceptThumbJPG — inject a JPG thumbnail from Python/AE
+// acceptThumbJPG — inject a JPG thumbnail from thumb_gen.exe/AE
 // Called from AE fallback path (PNG files) and legacy code
 function acceptThumbJPG(idx, path, uri){
   if(!path) return false;
@@ -980,9 +988,19 @@ function _injectThumbDirect(idx, dataURI, path){
 
 // Sequential AE capture
 var _thumbFailStreak=0;
+function _fallbackToAE(msg){
+  _jsLog("thumb","[EXE FALLBACK → AE] msg="+msg+" partial="+S.thumbDone+"/"+S.scenes.length);
+  if(_thumbCancelled) return;
+  // Kill any still-running thumb_gen.exe (timeout case) so it doesn't keep
+  // writing files while AE renders. No-op if the exe already finished.
+  evalScript("_cancelThumbGen()", function(){});
+  if(S.thumbDone >= S.scenes.length){ if(!_thumbGenFinished) _finishThumbGen(); return; }
+  _captureNext(0);
+}
 function _captureNext(i){
   if(_thumbCancelled) return;
   if(i>=S.scenes.length){_finishThumbGen();return;}
+  if(S.thumbs[i] !== undefined){ _captureNext(i+1); return; }
   var sc=S.scenes[i];
   setThumbProgress(i+1, S.scenes.length);
   var lazyFlag = (S.thumbMode === "lazy");
@@ -1066,12 +1084,14 @@ function _tryLoadThumbCache(tmpPath, scenes, cb){
           var finfo = window.cep.fs.stat(cached.thumbPath);
           if(!finfo || finfo.err){ valid = false; break; }
         }catch(e){ valid = false; break; }
-        newThumbs[ci] = "file:///" + cached.thumbPath.replace(/\\/g,"/");
+        newThumbs[ci] = filePathToURI(cached.thumbPath);
         newPaths[ci] = cached.thumbPath;
       }
       if(valid){
-        _jsLog("thumb","[CACHE HIT] loading "+newPaths.length+" thumbnails from cache");
-        cb(true, newThumbs, newPaths, newPaths.length);
+        // ponytail: newPaths is an object — .length is undefined, count keys instead
+        var _cacheCount = Object.keys(newPaths).length;
+        _jsLog("thumb","[CACHE HIT] loading "+_cacheCount+" thumbnails from cache");
+        cb(true, newThumbs, newPaths, _cacheCount);
       } else {
         _jsLog("thumb","[CACHE MISS] thumbnail cache invalid, re-rendering");
         cb(false);
@@ -1084,8 +1104,17 @@ function _tryLoadThumbCache(tmpPath, scenes, cb){
 }
 
 function _finishThumbGen(){
-  if(_thumbCancelled) return;
   if(_thumbGenFinished) return;
+  if(_thumbCancelled){
+    _thumbGenFinished = true;
+    S.thumbLoading = false;
+    _thumbFailStreak = 0;
+    $("thumb-btn").classList.remove("loading");
+    $("thumb-cancel-btn").style.display = "none";
+    setThumbProgress(null);
+    _jsLog("thumb","[FINISH] cancelled="+S.thumbDone+"/"+S.scenes.length);
+    return;
+  }
   _thumbGenFinished = true;
   S.thumbLoading=false;
   _thumbFailStreak=0;
@@ -1223,31 +1252,70 @@ function _cmpVer(a,b){
   }
   return 0;
 }
-function _checkUpdate(){
+function _getTagFromUrl(u){
   try{
-    fetch("https://api.github.com/repos/"+GH_REPO+"/releases/latest", {
-      cache: "no-cache"
-    }).then(function(rsp){
-      if(!rsp.ok){ _latestVer = null; _renderUpdateStatus(); _renderUpdateToggle(_loadUpdateNotifPref()); return; }
+    var m = String(u || "").match(/\/releases\/tag\/([^\/?#]+)/);
+    return m ? decodeURIComponent(m[1]) : "";
+  }catch(e){ return ""; }
+}
+function _applyUpdateInfo(tag){
+  _latestVer = tag;
+  _jsLog("update","latest="+_latestVer);
+  var tagVer = _parseVer(_latestVer);
+  var curVer = _parseVer(CUR_VER);
+  _renderUpdateStatus();
+  _renderUpdateToggle(_loadUpdateNotifPref());
+  var pref = _loadUpdateNotifPref();
+  if(pref === "on" && _cmpVer(tagVer, curVer) > 0){
+    var laterAt = _getUpdateLaterTime();
+    if(laterAt > 0 && Date.now() < laterAt) return;
+    _setUpdateLaterTime(0);
+    var detail = $("update-modal-detail");
+    if(detail) detail.textContent = tag + "  →  v" + CUR_VER;
+    $("update-overlay").classList.remove("hidden");
+  }
+}
+function _checkUpdate(){
+  // ponytail: primary = releases/latest redirect (web page, no API rate limit); API only fallback
+  var _btn = $("update-status-btn");
+  if(_btn){ try{ _btn.disabled = true; _btn.textContent = t("update_checking"); }catch(e){} }
+  _jsLog("update","check start cur="+CUR_VER);
+  var _fail = function(reason){
+    _latestVer = null; _renderUpdateStatus(); _renderUpdateToggle(_loadUpdateNotifPref());
+    _jsLog("update","check failed: "+reason);
+    setStatus(t("update_check_fail")+(reason ? " ("+reason+")" : ""),"warn");
+  };
+  var _ctl = null, _timer = null;
+  try{
+    if(typeof AbortController !== "undefined"){
+      _ctl = new AbortController();
+      _timer = setTimeout(function(){ try{ _ctl.abort(); }catch(e){} }, 10000);
+    }
+  }catch(e){ _ctl = null; }
+  var _stopTimer = function(){ if(_timer){ try{ clearTimeout(_timer); }catch(e){} _timer = null; } };
+  var _apiFallback = function(){
+    _jsLog("update","redirect failed, trying API fallback");
+    var o = { cache: "no-cache", method: "GET" };
+    if(_ctl) o.signal = _ctl.signal;
+    fetch("https://api.github.com/repos/"+GH_REPO+"/releases/latest", o).then(function(rsp){
+      _stopTimer();
+      if(!rsp.ok){ _fail(rsp.status === 403 ? "rate limited, try later" : ("HTTP "+rsp.status)); return; }
       rsp.json().then(function(data){
-        if(!data || !data.tag_name){ _latestVer = null; _renderUpdateStatus(); _renderUpdateToggle(_loadUpdateNotifPref()); return; }
-        _latestVer = data.tag_name;
-        var tagVer = _parseVer(_latestVer);
-        var curVer = _parseVer(CUR_VER);
-        _renderUpdateStatus();
-        _renderUpdateToggle(_loadUpdateNotifPref());
-        var pref = _loadUpdateNotifPref();
-        if(pref === "on" && _cmpVer(tagVer, curVer) > 0){
-          var laterAt = _getUpdateLaterTime();
-          if(laterAt > 0 && Date.now() < laterAt) return;
-          _setUpdateLaterTime(0);
-          var detail = $("update-modal-detail");
-          if(detail) detail.textContent = data.tag_name + "  →  v" + CUR_VER;
-          $("update-overlay").classList.remove("hidden");
-        }
-      });
-    });
-  }catch(e){ _latestVer = null; _renderUpdateStatus(); _renderUpdateToggle(_loadUpdateNotifPref()); }
+        if(!data || !data.tag_name){ _fail("bad response"); return; }
+        _applyUpdateInfo(data.tag_name);
+      }, function(){ _fail("bad JSON"); });
+    }, function(){ _fail("network"); });
+  };
+  try{
+    var o2 = { cache: "no-cache", method: "HEAD" };
+    if(_ctl) o2.signal = _ctl.signal;
+    fetch("https://github.com/"+GH_REPO+"/releases/latest", o2).then(function(rsp){
+      _stopTimer();
+      var tag = _getTagFromUrl(rsp.url);
+      if(!tag){ _apiFallback(); return; }
+      _applyUpdateInfo(tag);
+    }, function(){ _apiFallback(); });
+  }catch(e){ _apiFallback(); }
 }
 function _hideUpdatePopup(){
   $("update-overlay").classList.add("hidden");
@@ -1327,12 +1395,11 @@ $("ob-lang-id").addEventListener("click",function(){switchLang("id");});
 // Diag
 $("diag-btn").addEventListener("click",function(){
   setStatus("Running diagnostics… (may take 5-10s)","");
-  var pyPath = _state.pyPath || "";
-  callHost("getFullDiagnostics",[S.customTmpPath, pyPath], function(res){
+  callHost("getFullDiagnostics",[S.customTmpPath], function(res){
     if(!res){ setStatus("Diagnostics failed","warn"); return; }
 
     var lines = [];
-    lines.push("═══ SED Panel v3.2 — Full Diagnostics ═══");
+    lines.push("═══ SED Panel v3.4 — Full Diagnostics ═══");
     lines.push("");
     lines.push("AE Version    : " + (res.aeVersion||"?"));
     lines.push("");
@@ -1345,15 +1412,9 @@ $("diag-btn").addEventListener("click",function(){
     lines.push("Path     : " + (res.sourceFile||"(not found)"));
     lines.push("Exists   : " + res.sourceExists);
     lines.push("");
-    lines.push("─ Python ───────────────────────────────");
-    lines.push("Path     : " + (res.pythonExe||"(not found)"));
-    lines.push("Exists   : " + res.pythonExists + "  Runs: " + res.pythonRunsOk);
-    lines.push("Version  : " + (res.pythonVersion||"?"));
-    lines.push("cv2      : " + (res.cv2Available ? "✓ "+res.cv2Version : "✗ NOT INSTALLED"));
-    if(res.cv2Error) lines.push("cv2 err  : " + res.cv2Error);
-    lines.push("thumb_gen: " + (res.thumbGenPyExists ? "✓ "+res.thumbGenPyPath : "✗ NOT FOUND"));
+    lines.push("─ Thumb Gen ───────────────────────────");
+    lines.push("thumb_gen: " + (res.thumbGenExeExists ? "✓ "+res.thumbGenExePath : "✗ NOT FOUND"));
     lines.push("Plugin root: " + (res.pluginRootFromDollar||"?"));
-    if(res.pythonRunError) lines.push("Run err  : " + res.pythonRunError);
     lines.push("");
     lines.push("─ Logs ─────────────────────────────────");
     lines.push("Folder   : " + (res.logFolder||"?"));
@@ -1408,7 +1469,11 @@ $("read-btn").addEventListener("click",function(){
     $("read-cancel-btn").style.display = "none";
     $("status-dot").classList.remove("loading");
     if(_readCancelled) return;
-    if(!res.ok){setStatus(res.msg||t("no_markers"),"warn");return;}
+    if(!res.ok){
+      var rmsg=res.msg||t("no_markers");
+      if(res.diag&&res.diag.note) rmsg+="  ["+res.diag.note+"]";
+      setStatus(rmsg,"warn");return;
+    }
     _applyScenes(res);
     setStatus(t("scene_from_markers",{n:S.scenes.length}),"ok");
     if(S.scenes.length>0) _startThumbAuto();
@@ -1817,10 +1882,15 @@ $("thumb-btn").addEventListener("click",function(){
 function _cancelThumbGen(){
   if(!S.thumbLoading) return;
   _thumbCancelled = true;
+  if(_thumbCancelPath){
+    try{ window.cep.fs.writeFile(_thumbCancelPath.replace(/\\/g,"/"), "cancel"); }
+    catch(e){ _jsLog("thumb","[CANCEL FAIL] could not write cancel file: "+e.toString()); }
+  }
+  // Kill background thumb generation processes (ffmpeg, thumb_gen.exe)
+  evalScript("_cancelThumbGen()", function(res){});
   S.thumbLoading  = false;
   $("thumb-btn").classList.remove("loading");
   $("thumb-cancel-btn").style.display = "none";
-  _stopPyPoller();
   _hideThumbProgressModal();
   setThumbProgress(null);
   setStatus(t("thumb_cancelled"),"warn");
@@ -2233,8 +2303,9 @@ function _cleanThumbTempOnStart(){
         for(var di = 0; di < dir.data.length; di++){
           var name = dir.data[di];
           if(name.indexOf("sed_ff_") === 0 || name.indexOf("sed_thumb_cache") === 0 ||
-             name.indexOf("sed_results") === 0 || name.indexOf("sed_py_") === 0 ||
-             name.indexOf("sed_jobs") === 0 || name.indexOf("sed_batch") === 0){
+             name.indexOf("sed_results") === 0 || name.indexOf("sed_exe_") === 0 ||
+             name.indexOf("sed_jobs") === 0 || name.indexOf("sed_batch") === 0 ||
+             name.indexOf("sed_thumb_cancel_") === 0){
             window.cep.fs.deleteFileOrDirectory(tmp + "/" + name);
           }
         }
@@ -2246,7 +2317,8 @@ function _cleanThumbTempOnStart(){
 // Prevent panel going blank when other CEP panels are closed/opened.
 // CEP shares one Chromium renderer — other panels can disturb the DOM.
 function _initPanelVisibility(){
-  // Prevent closing AE when panel window is closed (undocked/floating)
+  // Prevent closing AE when panel window is closed (undocked/floating).
+  // Non-empty returnValue keeps the extension page loaded so the host stays up.
   window.addEventListener("beforeunload",function(e){
     e.preventDefault();
     e.returnValue="";
@@ -2299,6 +2371,7 @@ function _initPanelVisibility(){
   }catch(e){}
 
   // Periodic check: if panel appears blank, restore it
+  // ponytail: 5s is plenty for a blank-panel watchdog (was 2s)
   setInterval(function(){
     if(document.body.style.display === "none" ||
        document.body.style.visibility === "hidden"){
@@ -2309,7 +2382,7 @@ function _initPanelVisibility(){
     if(S.scenes.length > 0 && !document.querySelector(".scene-card") && !_panelHidden){
       _rebuildDisplay(false);
     }
-  }, 2000);
+  }, 5000);
 }
 
 // Restore thumbnails from S.thumbs memory after panel DOM is reset
@@ -2349,6 +2422,8 @@ function _diagButtons(){
   var fns = ["startThumbGen","_startThumbAuto","acceptThumbJPG","_doStartThumb",
              "_captureNext","_finishThumbGen"];
   fns.forEach(function(fn){
+    // NOTE: eval() required here — these fns live inside the IIFE scope,
+    // not on window, and the list is a hardcoded allowlist (no user input).
     try{ if(typeof eval(fn) !== "function") missingFns.push(fn); }
     catch(e){ missingFns.push(fn+"(err)"); }
   });

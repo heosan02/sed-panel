@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableDelayedExpansion
-title SED Panel CEP v3.2 - Installer
+title SED Panel CEP v3.4 - Installer
 
 echo.
 echo  =====================================================
-echo   SED Panel CEP  v3.2  ^|  Auto Installer
+echo   SED Panel CEP  v3.4  ^|  Auto Installer
 echo   Multi-Layer Read Markers  ^|  Thumbnail Multi-Layer  ^|  Merge Cut Layers
 echo   (c) 2026 Heosan
 echo  =====================================================
@@ -94,28 +94,8 @@ if "!REG_OK!" == "1" (
 )
 echo.
 
-:: -- [2/3] After Effects ---------------------------------
-echo  [2/3] Memeriksa proses After Effects...
-echo.
-
-tasklist /fi "imagename eq AfterFX.exe" 2>nul | find /i "AfterFX.exe" >nul
-if !errorlevel! == 0 (
-    echo  After Effects sedang berjalan.
-    set /p "CLOSEAE=Tutup AE sekarang? (y/N): "
-    if /i "!CLOSEAE!" == "y" (
-        taskkill /im AfterFX.exe /f >nul 2>&1
-        timeout /t 2 /nobreak >nul
-        echo  [OK] After Effects ditutup.
-    ) else (
-        echo  [SKIP] Restart AE manual setelah install selesai.
-    )
-) else (
-    echo  [OK] After Effects tidak berjalan.
-)
-echo.
-
-:: -- [3/3] Install Extension -------------------------
-echo  [3/3] Menginstal extension...
+:: -- [2/3] Install Extension -------------------------
+echo  [2/3] Menginstal extension...
 echo.
 
 set "CEP_DIR=!ROAMING!\Adobe\CEP\extensions"
@@ -151,6 +131,11 @@ if exist "!DEST!\js\CSInterface.js" (
     echo   [ERROR] CSInterface.js HILANG
     set "ALL_OK=0"
 )
+if exist "!DEST!\py\thumb_gen.exe" (
+    echo   [OK] py\thumb_gen.exe
+) else (
+    echo   [WARN] py\thumb_gen.exe HILANG - thumbnail pakai AE fallback
+)
 echo.
 
 if "!ALL_OK!" == "0" (
@@ -162,15 +147,28 @@ if "!ALL_OK!" == "0" (
 
 :: -- SELESAI ----------------------------------------------------
 echo  =====================================================
-echo   INSTALASI SELESAI!  SED Panel CEP v3.2
+echo   INSTALASI SELESAI!  SED Panel CEP v3.4
 echo  =====================================================
 echo.
 echo  Terinstall di: !DEST!
 echo.
 echo  Cara buka: After Effects ^> Window ^> Extensions ^> SED Panel
 echo.
-echo  PENTING: Restart AE sepenuhnya setelah install ini.
+echo  CATATAN: Jika AE sedang terbuka, file extension sudah
+echo  di-copy tanpa menutup AE. Tutup dan buka ulang panelnya
+echo  (Window ^> Extensions ^> SED Panel) untuk memuat versi baru.
 echo.
+
+set "AE_RUNNING=0"
+tasklist /fi "imagename eq AfterFX.exe" 2>nul | find /i "AfterFX.exe" >nul
+if !errorlevel! == 0 set "AE_RUNNING=1"
+
+if "!AE_RUNNING!" == "1" (
+    echo  After Effects sedang berjalan - buka panelnya langsung di AE.
+    echo.
+    pause
+    exit /b 0
+)
 
 set /p "OPENAE=Buka After Effects sekarang? (y/N): "
 if /i "!OPENAE!" neq "y" goto :END

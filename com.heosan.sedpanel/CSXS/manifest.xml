@@ -1,11 +1,11 @@
 ﻿<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <ExtensionManifest
     ExtensionBundleId="com.heosan.sedpanel"
-    ExtensionBundleVersion="3.2.0"
+    ExtensionBundleVersion="3.4.0"
     ExtensionBundleName="SED Panel"
     Version="6.0">
   <ExtensionList>
-    <Extension Id="com.heosan.sedpanel.panel" Version="3.2.0"/>
+    <Extension Id="com.heosan.sedpanel.panel" Version="3.4.0"/>
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
@@ -15,7 +15,7 @@
           16.x = CC 2019       |  17.x = 2020       |  18.x = 2021
           22.x = 2022          |  23.x = 2023       |  24.x = 2024
           25.x = 2025          |  26.x = 2026
-        Scene Edit Detection native: AE 2022 (v22.0+)
+        Scene Edit Detection native: AE 2022 (AE v22.0+)
       -->
       <Host Name="AEFT" Version="[13.0,99.9]"/>
     </HostList>
@@ -69,3 +69,4 @@
     </Extension>
   </DispatchInfoList>
 </ExtensionManifest>
+
