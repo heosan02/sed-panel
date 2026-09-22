@@ -974,13 +974,17 @@ function acceptThumbJPG(idx, path, uri){
 
 // _injectThumbDirect — inject pre-loaded data URI, no async loading needed
 function _injectThumbDirect(idx, dataURI, path){
-  var card = document.querySelector(".scene-card[data-idx='"+idx+"']");
+  var card = _findCard(idx);
   if(!card) return;
   var wrap = card.querySelector(".card-img-wrap");
   if(!wrap) return;
   wrap.innerHTML = "";
   wrap.classList.remove("card-img-ph"); wrap.classList.add("thumb-loaded");
-  wrap.style.backgroundImage = "url('"+dataURI.replace(/'/g,"%27")+"')";
+  wrap.style.backgroundImage = "";
+  var img = document.createElement("img");
+  img.setAttribute("loading","lazy"); img.setAttribute("decoding","async");
+  img.src = dataURI; img.onerror = function(){ this.style.display = "none"; };
+  wrap.appendChild(img);
   var num = card.querySelector(".card-thumb-num");
   if(num) num.style.display = "none";
 }
@@ -1164,10 +1168,14 @@ function _showThumbDiag(){
   });
 }
 function _injectThumb(idx,uri,path){
-  var card=document.querySelector(".scene-card[data-idx='"+idx+"']"); if(!card) return;
+  var card=_findCard(idx); if(!card) return;
   var wrap=card.querySelector(".card-img-wrap"); if(!wrap) return;
   wrap.innerHTML=""; wrap.classList.remove("card-img-ph"); wrap.classList.add("thumb-loaded");
-  wrap.style.backgroundImage="url('"+uri.replace(/'/g,"%27")+"')";
+  wrap.style.backgroundImage="";
+  var img=document.createElement("img");
+  img.setAttribute("loading","lazy"); img.setAttribute("decoding","async");
+  img.src=uri; img.onerror=function(){ this.style.display="none"; };
+  wrap.appendChild(img);
   var num=card.querySelector(".card-thumb-num"); if(num) num.style.display="none";
 }
 
@@ -1480,11 +1488,19 @@ $("read-btn").addEventListener("click",function(){
   });
 });
 function _applyScenes(res){
-  S.scenes=res.scenes; S.detectDone=true;
+  // ponytail: chronological order + sequential index is the panel-wide invariant
+  // (keep/merge/export assume it) — enforce here so no producer can show skips.
+  var list = (res.scenes || []).slice().sort(function(a,b){ return a.start_sec - b.start_sec; });
+  for(var i = 0; i < list.length; i++){ list[i].index = i + 1; }
+  S.scenes=list; S.detectDone=true;
   S.selected=[]; S.activeIdx=-1; S.fps=res.fps||24;
   S.thumbs={}; S.thumbPaths={}; S.thumbDone=0;
   $("layer-name").textContent=res.layerName||"—";
   setThumbCount(0); setThumbProgress(null);
+  try{
+    _jsLog("diag","[APPLY] scenes="+list.length+
+      (list.length ? (" first="+list[0].start_sec+" last="+list[list.length-1].start_sec) : ""));
+  }catch(e){}
   refreshAll();
 }
 
@@ -1921,11 +1937,14 @@ $("reset-thumb-btn").addEventListener("click",function(){
   setThumbCount(0);
   var cards=$("grid").querySelectorAll(".scene-card");
   for(var ci=0;ci<cards.length;ci++){
+    // ponytail: rendered cards may be a window subset — resolve scene via dataset, not position
+    var si=parseInt(cards[ci].dataset.idx,10); if(isNaN(si)) si=ci;
     var wrap=cards[ci].querySelector(".card-img-wrap");
     var tnum=cards[ci].querySelector(".card-thumb-num");
-    if(wrap){wrap.className="card-img-wrap card-img-ph";wrap.style.backgroundImage="";}
+    // ponytail: innerHTML="" removes <img> nodes too (lazy-img era)
+    if(wrap){wrap.className="card-img-wrap card-img-ph";wrap.style.backgroundImage="";wrap.innerHTML="";}
     if(!tnum){var s=document.createElement("span");s.className="card-thumb-num";
-      s.textContent=pad3(S.scenes[ci]?S.scenes[ci].index:ci);cards[ci].querySelector(".card-thumb").appendChild(s);}
+      s.textContent=pad3(S.scenes[si]?S.scenes[si].index:si);cards[ci].querySelector(".card-thumb").appendChild(s);}
   }
   setStatus(t("clean_ok",{n:0}),"ok");
 });
@@ -1989,7 +2008,7 @@ function getListRow(idx){
   return document.querySelector("#scene-tbody tr[data-idx='"+idx+"']");
 }
 function getGridCard(idx){
-  return document.querySelector(".scene-card[data-idx='"+idx+"']");
+  return _findCard(idx);
 }
 function updateActiveSceneUI(prev,next){
   [prev,next].forEach(function(i){
@@ -2002,6 +2021,9 @@ function updateActiveSceneUI(prev,next){
   });
   var nextRow=getListRow(next);
   if(nextRow) nextRow.scrollIntoView({block:"nearest"});
+  // ponytail: card may live in an unrendered scroll chunk — complete render, then scroll
+  var nextCard=_ensureCardRendered(next);
+  if(nextCard) nextCard.scrollIntoView({block:"nearest"});
 }
 function updateMarkUI(idx){
   var marked=S.selected.indexOf(idx)>=0;
@@ -2076,11 +2098,169 @@ function refreshList(){
 }
 
 var _gridRefreshToken = 0;
+var _gridObserver = null; // legacy sentinel (pre-window builds) — kept for cleanup only
+var _cardEls = {}; // ponytail: idx -> rendered card element (O(1) inject); evicted cards deleted
+var _gridRowH = 0;   // measured row height for windowing
+var _gridWinFirst = 0, _gridWinLast = -1; // rendered row range
+var _gridScrollTick = false;
+var _gridScrollBound = false;
+
+function _gridStopObserver(){
+  if(_gridObserver){ try{ _gridObserver.disconnect(); }catch(e){} _gridObserver = null; }
+  var sent = document.getElementById("grid-sentinel");
+  if(sent && sent.parentNode) sent.parentNode.removeChild(sent);
+}
+
+function _findCard(idx){
+  var c = _cardEls[idx];
+  if(c && c.isConnected) return c;
+  return document.querySelector(".scene-card[data-idx='"+idx+"']");
+}
+
+function _gridBuildCard(sc, i, selSet){
+  var card=document.createElement("div");
+  card.className="scene-card"; card.dataset.idx=i;
+  if(S.activeIdx===i)card.classList.add("active");
+  if(selSet.has(i))card.classList.add("marked");
+  var mk=selSet.has(i);
+  var uri=S.thumbs[i]||null;
+  var hasThumb = !!uri;
+  // ponytail pkg2: native <img> lazy+async — browser schedules decode, no file:// I/O storm
+  var imgHTML = hasThumb
+    ? "<div class='card-img-wrap thumb-loaded'><img loading='lazy' decoding='async' src="+JSON.stringify(uri)+" onerror=\"this.style.display='none'\"></div>"
+    : "<div class='card-img-wrap card-img-ph'></div>" +
+      "<span class='card-thumb-num'>"+pad3(sc.index)+"</span>";
+  card.innerHTML=
+    "<div class='card-thumb'>"+imgHTML+
+      "<span class='card-thumb-tc'>"+sc.start_tc+"</span>"+
+      (mk?"<span class='card-thumb-mark'>✔</span>":"")+
+      "<div class='card-play-track'><div class='card-play-bar'></div></div>"+
+    "</div>"+
+    "<div class='card-meta'>"+
+      "<span class='card-num'>#"+pad3(sc.index)+"</span>"+
+      "<span class='card-dur'>"+sc.dur_str+"</span>"+
+    "</div>";
+  _cardEls[i] = card;
+  return card;
+}
+
+// ponytail: explicit jump (nav-first/last) to an unrendered card —
+// render the window around it, position scroll, return the card.
+function _ensureCardRendered(idx){
+  if(idx === undefined || idx < 0 || idx >= S.scenes.length) return null;
+  var c = _findCard(idx);
+  if(c) return c;
+  if(!_gridRowH) _gridMeasureRow();
+  var cols = Math.max(1, S.cols || 1);
+  var row = Math.floor(idx / cols);
+  if(!_gridRowH){
+    // row height unknown and card missing — complete render once, then measure
+    _gridStopObserver();
+    ++_gridRefreshToken;
+    var grid0 = $("grid");
+    grid0.innerHTML = "";
+    _cardEls = {};
+    var selSet0 = new Set(S.selected);
+    var frag0 = document.createDocumentFragment();
+    for(var bi0 = 0; bi0 < S.scenes.length; bi0++){
+      frag0.appendChild(_gridBuildCard(S.scenes[bi0], bi0, selSet0));
+    }
+    grid0.appendChild(frag0);
+    _gridMeasureRow();
+    return _findCard(idx);
+  }
+  var visRows = _gridVisibleRows();
+  _gridRenderWindow(Math.max(0, row - 2), row + visRows);
+  var scroller = $("grid-scroll");
+  if(scroller){ try{ scroller.scrollTop = Math.max(0, row * _gridRowH - 40); }catch(e){} }
+  return _findCard(idx);
+}
+
+function _gridMeasureRow(){
+  var grid = $("grid");
+  var card = grid ? grid.querySelector(".scene-card") : null;
+  var h = card ? card.offsetHeight : 0;
+  if(h > 40) _gridRowH = h;
+  return _gridRowH;
+}
+
+function _gridVisibleRows(){
+  var scroller = $("grid-scroll");
+  var h = scroller ? scroller.clientHeight : 600;
+  return Math.max(4, Math.ceil(h / Math.max(1, _gridRowH)) + 1);
+}
+
+// ponytail: windowed render — only rows around the viewport exist in DOM.
+// Far cards are unmounted (decoded images bounded), re-created on scroll from S state.
+function _gridRenderWindow(firstRow, lastRow){
+  var grid = $("grid");
+  if(!grid || !S.detectDone || !S.scenes.length) return;
+  var cols = Math.max(1, S.cols || 1);
+  var totalRows = Math.ceil(S.scenes.length / cols);
+  firstRow = Math.max(0, firstRow); lastRow = Math.min(totalRows - 1, lastRow);
+  if(lastRow < firstRow) return;
+  _gridWinFirst = firstRow; _gridWinLast = lastRow;
+  var selSet = new Set(S.selected);
+  var scroller = $("grid-scroll");
+  var st = scroller ? scroller.scrollTop : 0;
+  var frag = document.createDocumentFragment();
+  var top = document.createElement("div");
+  top.style.cssText = "grid-column:1/-1;height:" + Math.round(firstRow * _gridRowH) + "px;";
+  frag.appendChild(top);
+  _cardEls = {};
+  for(var r = firstRow; r <= lastRow; r++){
+    for(var c = 0; c < cols; c++){
+      var bi = r * cols + c;
+      if(bi >= S.scenes.length) break;
+      frag.appendChild(_gridBuildCard(S.scenes[bi], bi, selSet));
+    }
+  }
+  var bot = document.createElement("div");
+  bot.style.cssText = "grid-column:1/-1;height:" + Math.round((totalRows - 1 - lastRow) * _gridRowH) + "px;";
+  frag.appendChild(bot);
+  grid.innerHTML = "";
+  grid.appendChild(frag);
+  if(scroller && scroller.scrollTop !== st){ try{ scroller.scrollTop = st; }catch(e){} }
+}
+
+function _gridOnScroll(){
+  if(_gridScrollTick) return;
+  _gridScrollTick = true;
+  requestAnimationFrame(function(){
+    _gridScrollTick = false;
+    if(!S.detectDone || !S.scenes.length) return;
+    if(!_gridRowH) _gridMeasureRow();
+    if(!_gridRowH) return;
+    var scroller = $("grid-scroll");
+    var cols = Math.max(1, S.cols || 1);
+    var totalRows = Math.ceil(S.scenes.length / cols);
+    var firstRow = Math.floor((scroller ? scroller.scrollTop : 0) / _gridRowH);
+    var visRows = _gridVisibleRows();
+    var nf = Math.max(0, firstRow - 4);
+    var nl = Math.min(totalRows - 1, firstRow + visRows + 6);
+    if(nf !== _gridWinFirst || nl !== _gridWinLast){
+      _gridRenderWindow(nf, nl);
+    }
+  });
+}
+
+function _gridBindScroll(){
+  if(_gridScrollBound) return;
+  var scroller = $("grid-scroll");
+  if(!scroller) return;
+  _gridScrollBound = true;
+  scroller.addEventListener("scroll", _gridOnScroll, false);
+}
 
 function refreshGrid(cb){
   var token = ++_gridRefreshToken;
+  void token;
+  _gridStopObserver();
   var grid=$("grid");grid.innerHTML="";
+  _cardEls = {}; _gridWinFirst = 0; _gridWinLast = -1;
   grid.style.gridTemplateColumns="repeat("+S.cols+",1fr)";
+  var scroller = $("grid-scroll");
+  if(scroller){ try{ scroller.scrollTop = 0; }catch(e){} }
   if(!S.detectDone||!S.scenes.length){
     var e=document.createElement("div");e.className="grid-empty";
     e.textContent=t("no_scenes");grid.appendChild(e);
@@ -2088,49 +2268,32 @@ function refreshGrid(cb){
     return;
   }
   var selSet = new Set(S.selected);
-  var bi = 0;
-  var BATCH = 100;
-  function addNext(){
-    if(token !== _gridRefreshToken) return;
-    if(bi >= S.scenes.length){
-      if(cb) setTimeout(cb, 0);
-      return;
-    }
-    var end = Math.min(bi + BATCH, S.scenes.length);
-    var frag = document.createDocumentFragment();
-    for(; bi < end; bi++){
-      var sc = S.scenes[bi];
-      var i = bi;
-      var card=document.createElement("div");
-      card.className="scene-card"; card.dataset.idx=i;
-      if(S.activeIdx===i)card.classList.add("active");
-      if(selSet.has(i))card.classList.add("marked");
-      var mk=selSet.has(i);
-      var uri=S.thumbs[i]||null;
-      var hasThumb = !!uri;
-      var imgHTML = hasThumb
-        ? "<div class='card-img-wrap thumb-loaded' style='background-image:url("+JSON.stringify(uri)+");background-size:cover;background-position:center'></div>"
-        : "<div class='card-img-wrap card-img-ph'></div>" +
-          "<span class='card-thumb-num'>"+pad3(sc.index)+"</span>";
-      card.innerHTML=
-        "<div class='card-thumb'>"+imgHTML+
-          "<span class='card-thumb-tc'>"+sc.start_tc+"</span>"+
-          (mk?"<span class='card-thumb-mark'>✔</span>":"")+
-          "<div class='card-play-track'><div class='card-play-bar'></div></div>"+
-        "</div>"+
-        "<div class='card-meta'>"+
-          "<span class='card-num'>#"+pad3(sc.index)+"</span>"+
-          "<span class='card-dur'>"+sc.dur_str+"</span>"+
-        "</div>";
-      frag.appendChild(card);
-    }
-    grid.appendChild(frag);
-    requestAnimationFrame(addNext);
+  var cols = Math.max(1, S.cols || 1);
+  var firstBatch = Math.min(S.scenes.length, cols * 8); // ~8 rows first paint
+  var frag = document.createDocumentFragment();
+  for(var bi = 0; bi < firstBatch; bi++){
+    frag.appendChild(_gridBuildCard(S.scenes[bi], bi, selSet));
   }
-  addNext();
+  grid.appendChild(frag);
+  _gridMeasureRow();
+  if(_gridRowH && firstBatch < S.scenes.length){
+    var visRows = _gridVisibleRows();
+    _gridRenderWindow(0, Math.min(Math.ceil(S.scenes.length / cols) - 1, visRows + 6));
+  } else {
+    _gridWinLast = Math.ceil(firstBatch / cols) - 1;
+  }
+  _gridBindScroll();
+  if(cb) setTimeout(cb, 0);
 }
 
 function _rebuildDisplay(restoreThumbs){
+  // ponytail pkg4: during thumb load, never restart grid from 0 (aborts in-flight render);
+  // only fill gaps + restore thumbs
+  if(S.thumbLoading && document.querySelector(".scene-card")){
+    if(!document.querySelector("#scene-tbody tr")) refreshList();
+    if(restoreThumbs && S.thumbDone > 0) _restoreThumbsFromMemory();
+    return;
+  }
   refreshGrid(function(){
     if(restoreThumbs && S.thumbDone > 0) _restoreThumbsFromMemory();
   });
@@ -2408,6 +2571,24 @@ function _restoreThumbsFromMemory(){
   }
   restoreBatch();
 }
+
+// ponytail: one-line ground truth for scene-order bugs — paste __sedDiag()
+// in Inspect → Console. Checks DATA order (index sequential + time sorted)
+// and how many cards are currently rendered (windowing).
+window.__sedDiag = function(){
+  try{
+    var n = S.scenes.length, ok = true, badAt = -1;
+    for(var i = 0; i < n; i++){
+      var sc = S.scenes[i];
+      if(sc.index !== i + 1){ ok = false; badAt = i; break; }
+      if(i > 0 && sc.start_sec < S.scenes[i-1].start_sec){ ok = false; badAt = i; break; }
+    }
+    return JSON.stringify({scenes:n, dataOrderOk:ok, badAt:badAt,
+      renderedCards:document.querySelectorAll(".scene-card").length,
+      winFirst:_gridWinFirst, winLast:_gridWinLast, rowH:Math.round(_gridRowH),
+      thumbsDone:S.thumbDone, thumbKeys:Object.keys(S.thumbs).length});
+  }catch(e){ return JSON.stringify({err:String(e)}); }
+};
 
 function _diagButtons(){
   var btns = ["thumb-btn","thumb-cancel-btn","read-btn","read-cancel-btn",

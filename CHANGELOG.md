@@ -14,6 +14,13 @@ All notable changes to SED Panel will be documented here.
 - `beforeunload` uses standard `e.returnValue = ""`
 - Capture fallbacks (`saveFrameToPng` / RQ / lazy) now log the root-cause error via `_writeLog` instead of swallowing it
 - Update check: primary via `releases/latest` redirect (web page, no API rate limit) with GitHub API as fallback; visible "Checking…" state, failure reason in status bar + log
+- Grid render: windowed around viewport (spacer divs, unmount far cards) instead of infinite append — DOM/images stay bounded at 2000+ scenes, no more lag creep while scrolling
+- Thumbnails: native `<img loading="lazy" decoding="async">` instead of `background-image` (no file:// I/O storm); broken files hide gracefully
+- Card lookup via `_cardEls` map (O(1)) instead of `querySelector` per thumb (was O(n²) at 2500 scenes)
+- `_rebuildDisplay` no longer restarts grid from 0 during thumb load (killed in-flight renders, looked like truncated scenes)
+- Nav jump to unrendered card completes render then scrolls (`_ensureCardRendered`)
+- `_applyScenes`: enforce chronological sort + sequential index (panel-wide invariant — no producer can show skipped/duplicated numbers)
+- `window.__sedDiag()`: one-line console ground truth (data order + rendered cards + thumbs)
 - Startup cleanup also removes stale `sed_thumb_cancel_*.flag` files
 - Blank-panel watchdog interval relaxed 2s → 5s
 
