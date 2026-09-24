@@ -2207,12 +2207,22 @@ function _gridRenderWindow(firstRow, lastRow){
   var top = document.createElement("div");
   top.style.cssText = "grid-column:1/-1;height:" + Math.round(firstRow * _gridRowH) + "px;";
   frag.appendChild(top);
+  var prev = _cardEls;
   _cardEls = {};
   for(var r = firstRow; r <= lastRow; r++){
     for(var c = 0; c < cols; c++){
       var bi = r * cols + c;
       if(bi >= S.scenes.length) break;
-      frag.appendChild(_gridBuildCard(S.scenes[bi], bi, selSet));
+      var el = prev[bi];
+      if(el && el.parentNode === grid){
+        // ponytail: reuse still-visible card — remount restarts img fadein → dark flicker
+        el.classList.toggle("active", S.activeIdx === bi);
+        el.classList.toggle("marked", selSet.has(bi));
+        _cardEls[bi] = el;
+      } else {
+        _cardEls[bi] = _gridBuildCard(S.scenes[bi], bi, selSet);
+      }
+      frag.appendChild(_cardEls[bi]);
     }
   }
   var bot = document.createElement("div");
@@ -2250,6 +2260,16 @@ function _gridBindScroll(){
   if(!scroller) return;
   _gridScrollBound = true;
   scroller.addEventListener("scroll", _gridOnScroll, false);
+  // ponytail: card aspect-ratio height changes with panel width — stale _gridRowH
+  // mis-sizes the spacers after a resize (layout "jumps"/gaps)
+  window.addEventListener("resize", function(){
+    if(!S.detectDone || !S.scenes.length) return;
+    _gridRowH = 0;
+    _gridMeasureRow();
+    if(!_gridRowH) return;
+    _gridWinFirst = 0; _gridWinLast = -1;
+    _gridOnScroll();
+  }, false);
 }
 
 function refreshGrid(cb){

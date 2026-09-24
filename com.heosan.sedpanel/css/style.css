@@ -860,9 +860,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   height: 100%;
   object-fit: cover;
   display: block;
-  animation: img-fadein .2s ease-out;
+  /* ponytail: no fadein — replay on window remount = dark flicker while scrolling */
 }
-@keyframes img-fadein { from { opacity:0; } to { opacity:1; } }
 
 /* Shimmer placeholder */
 .card-img-ph {

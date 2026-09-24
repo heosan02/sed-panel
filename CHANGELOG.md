@@ -2,6 +2,12 @@
 
 All notable changes to SED Panel will be documented here.
 
+## [3.4.1] — Unreleased
+
+### Fixed
+- **Dark thumbnail flicker while scrolling**: windowed grid re-created every visible card on each window shift, replaying the `<img>` fade-in animation (and re-triggering lazy decode) — still-visible cards are now reused in place; fade-in animation removed
+- **Layout jumps after resizing the panel**: `_gridRowH` was measured once and never invalidated, so spacer divs kept the old row height — now re-measured and the window re-rendered on `resize`
+
 ## [3.4.0] — 2026-09-21
 
 ### Fixed
